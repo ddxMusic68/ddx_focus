@@ -1,0 +1,27 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "default_agent": "fast build",
+
+  "agent": {
+    "fast build": {
+      "description": "Fast coding agent that minimizes unnecessary work",
+      "mode": "primary",
+      "steps": 5,
+      "prompt": "Be concise and efficient. Solve the user's request directly. Avoid unnecessary exploration, repeated checks, and verbose explanations. Use tools only when they are actually needed. Do not overthink simple tasks."
+    },
+    "fast plan": {
+      "description": "Fast coding agent",
+      "mode": "primary",
+      "steps": 5,
+      "prompt": "Be concise and efficient. Solve the user's request directly. Avoid unnecessary exploration, repeated checks, and verbose explanations. also dont implement anything this is just planning",
+      "permission": {
+        "*": "deny",
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "question": "allow"
+      }
+    }
+  }
+}
