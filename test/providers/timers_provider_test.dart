@@ -41,8 +41,7 @@ void main() {
         provider.addTimer(focus);
         provider.addTimer(study);
 
-        expect(provider.timers.map((t) => t.name),
-            equals(['Focus', 'Study']));
+        expect(provider.timers.map((t) => t.name), equals(['Focus', 'Study']));
       });
     });
 

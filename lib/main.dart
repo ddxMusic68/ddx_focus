@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'providers/sessions_provider.dart';
 import 'providers/settings_provider.dart';
+import 'providers/tags_provider.dart';
 import 'providers/timer_provider.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
@@ -23,6 +25,10 @@ class MainApp extends StatelessWidget {
         ),
         ChangeNotifierProvider(
           create: (context) => TimersProvider()..loadTimers(),
+        ),
+        ChangeNotifierProvider(create: (context) => TagsProvider()..loadTags()),
+        ChangeNotifierProvider(
+          create: (context) => SessionsProvider()..loadSessions(),
         ),
       ],
       child: Consumer<SettingsProvider>(
@@ -76,19 +82,12 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _selectedIndex = 0;
 
-  static const _screens = [
-    HomeScreen(),
-    StatsScreen(),
-    HistoryScreen(),
-  ];
+  static const _screens = [HomeScreen(), StatsScreen(), HistoryScreen()];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _selectedIndex, children: _screens),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
@@ -105,10 +104,7 @@ class _MainShellState extends State<MainShell> {
             selectedIcon: Icon(Icons.bar_chart),
             label: 'Stats',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.history),
-            label: 'History',
-          ),
+          NavigationDestination(icon: Icon(Icons.history), label: 'History'),
         ],
       ),
     );

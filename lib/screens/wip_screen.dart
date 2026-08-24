@@ -9,18 +9,12 @@ class WipScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('WIP'),
-      ),
+      appBar: AppBar(title: const Text('WIP')),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.construction,
-              size: 64,
-              color: AppColors.mintDark,
-            ),
+            const Icon(Icons.construction, size: 64, color: AppColors.mintDark),
             const SizedBox(height: 16),
             Text(
               feature == null ? 'Work in progress' : '$feature is coming soon',
@@ -32,8 +26,8 @@ class WipScreen extends StatelessWidget {
               'This feature has not been implemented yet.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),

@@ -59,8 +59,7 @@ class TimersProvider extends ChangeNotifier {
       _timers
         ..clear()
         ..addAll(
-          list
-              .map((e) => PomodoroTimer.fromJson(e as Map<String, dynamic>)),
+          list.map((e) => PomodoroTimer.fromJson(e as Map<String, dynamic>)),
         );
       notifyListeners();
     } catch (e) {

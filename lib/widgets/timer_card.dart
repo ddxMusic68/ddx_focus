@@ -12,11 +12,7 @@ class TimerCard extends StatelessWidget {
   final PomodoroTimer timer;
   final VoidCallback onDelete;
 
-  const TimerCard({
-    super.key,
-    required this.timer,
-    required this.onDelete,
-  });
+  const TimerCard({super.key, required this.timer, required this.onDelete});
 
   String _format(Duration d) {
     final minutes = d.inMinutes;
@@ -34,11 +30,7 @@ class TimerCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: ListTile(
         leading: const Icon(Icons.timer_outlined, color: AppColors.mintDark),
-        title: Text(
-          timer.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
+        title: Text(timer.name, maxLines: 1, overflow: TextOverflow.ellipsis),
         subtitle: Text(
           'Focus ${_format(timer.focusTime)} · Rest ${_format(timer.restTime)}',
         ),

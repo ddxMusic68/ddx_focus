@@ -1,8 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../models/session_model.dart';
 import '../models/timer_model.dart';
+import '../providers/sessions_provider.dart';
+import '../providers/tags_provider.dart';
 import '../utils/constants.dart';
 
 enum _Phase { focus, rest }
@@ -23,6 +27,10 @@ String _formatDuration(Duration d) {
 /// the user advances. When rest finishes the cycle resets to an idle focus
 /// phase. The config is passed by value, so edits or deletes made on the
 /// home screen never affect a running session.
+///
+/// The user can also capture session metadata: pick or create a tag,
+/// note what they're focusing on, and how they plan to rest. Completing
+/// the focus phase records a [PomodoroSession].
 class TimerPage extends StatefulWidget {
   final PomodoroTimer timer;
 
@@ -40,22 +48,32 @@ class _TimerPageState extends State<TimerPage> {
   Timer? _ticker;
   bool _focusOverflowAnnounced = false;
 
+  /// Session metadata entered by the user on this page.
+  String? _selectedTag;
+  final _newTagController = TextEditingController();
+  final _focusPlanController = TextEditingController();
+  final _restPlanController = TextEditingController();
+  DateTime? _startedAt;
+
   bool get _running => _ticker != null;
 
   /// True while focus has run past zero and is waiting for the user to
   /// advance to the rest phase.
-  bool get _isOvertime =>
-      _phase == _Phase.focus && _remaining <= Duration.zero;
+  bool get _isOvertime => _phase == _Phase.focus && _remaining <= Duration.zero;
 
   @override
   void dispose() {
     _ticker?.cancel();
+    _newTagController.dispose();
+    _focusPlanController.dispose();
+    _restPlanController.dispose();
     super.dispose();
   }
 
   void _start() {
     if (_running) return;
     setState(() {
+      _startedAt = DateTime.now();
       _ticker = Timer.periodic(_tickInterval, (_) => _tick());
     });
   }
@@ -93,9 +111,33 @@ class _TimerPageState extends State<TimerPage> {
           !_focusOverflowAnnounced &&
           _remaining <= Duration.zero) {
         _focusOverflowAnnounced = true;
+        _recordSession();
         _announce('Focus complete — tap the button to start your rest.');
       }
     });
+  }
+
+  /// Records a [PomodoroSession] for the just-completed focus phase.
+  void _recordSession() {
+    final overtime = _remaining.isNegative ? -_remaining : Duration.zero;
+    context.read<SessionsProvider>().record(
+      PomodoroSession(
+        tag: _selectedTag ?? '',
+        focusPlan: _focusPlanController.text.trim(),
+        restPlan: _restPlanController.text.trim(),
+        startedAt: _startedAt ?? DateTime.now(),
+        focusElapsed: widget.timer.focusTime + overtime,
+      ),
+    );
+  }
+
+  /// Deletes [tag] from the user's tag list, clearing the selection when
+  /// the removed tag was active. Existing sessions keep their own copy.
+  void _deleteTag(String tag) {
+    final removed = context.read<TagsProvider>().removeTag(tag);
+    if (removed && _selectedTag == tag) {
+      setState(() => _selectedTag = null);
+    }
   }
 
   /// Leaves focus overtime and starts the rest phase immediately.
@@ -121,81 +163,187 @@ class _TimerPageState extends State<TimerPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final focusRemaining =
-        _phase == _Phase.focus ? _remaining : widget.timer.focusTime;
-    final restRemaining =
-        _phase == _Phase.rest ? _remaining : widget.timer.restTime;
+    final focusRemaining = _phase == _Phase.focus
+        ? _remaining
+        : widget.timer.focusTime;
+    final restRemaining = _phase == _Phase.rest
+        ? _remaining
+        : widget.timer.restTime;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.timer.name),
-      ),
+      appBar: AppBar(title: Text(widget.timer.name)),
       body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _PhaseDisplay(
-                label: 'FOCUS',
-                remaining: focusRemaining,
-                total: widget.timer.focusTime,
-                active: _phase == _Phase.focus,
-                color: theme.colorScheme.primary,
-                overtime: _isOvertime,
-              ),
-              const SizedBox(height: 32),
-              _PhaseDisplay(
-                label: 'REST',
-                remaining: restRemaining,
-                total: widget.timer.restTime,
-                active: _phase == _Phase.rest,
-                color: AppColors.coral,
-              ),
-              const SizedBox(height: 32),
-              Text(
-                _isOvertime ? 'Overtime' : (_running ? 'Running' : 'Paused'),
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton.filledTonal(
-                    onPressed: _reset,
-                    icon: const Icon(Icons.restart_alt),
-                    tooltip: 'Reset',
-                  ),
-                  const SizedBox(width: 24),
-                  FloatingActionButton.large(
-                    onPressed: () {
-                      if (_isOvertime) {
-                        _advanceToRest();
-                      } else if (_running) {
-                        _pause();
-                      } else {
-                        _start();
-                      }
-                    },
-                    tooltip: _isOvertime
-                        ? 'Skip to rest'
-                        : (_running ? 'Pause' : 'Start'),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: Icon(
-                        _isOvertime
-                            ? Icons.skip_next
-                            : (_running ? Icons.pause : Icons.play_arrow),
-                        key: ValueKey<String>('$_isOvertime$_running'),
-                        size: 40,
+        child: LayoutBuilder(
+          builder: (context, viewport) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: viewport.maxHeight),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: SizedBox(
+                        width: 320,
+                        child: Column(
+                          children: [
+                            Consumer<TagsProvider>(
+                              builder: (context, tagsProvider, child) {
+                                final tags = tagsProvider.tags;
+                                return Column(
+                                  children: [
+                                    if (tags.isNotEmpty)
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 0,
+                                        children: [
+                                          for (final tag in tags)
+                                            GestureDetector(
+                                              onLongPress: () =>
+                                                  _deleteTag(tag),
+                                              child: ChoiceChip(
+                                                label: Text(tag),
+                                                selected: _selectedTag == tag,
+                                                onSelected: (selected) {
+                                                  setState(() {
+                                                    _selectedTag = selected
+                                                        ? tag
+                                                        : null;
+                                                  });
+                                                },
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextField(
+                                            controller: _newTagController,
+                                            decoration: const InputDecoration(
+                                              labelText: 'New tag',
+                                              hintText: 'e.g. work, study',
+                                              prefixIcon: Icon(Icons.tag),
+                                              border: OutlineInputBorder(),
+                                              isDense: true,
+                                            ),
+                                          ),
+                                        ),
+                                        IconButton(
+                                          onPressed: () {
+                                            final name = _newTagController.text;
+                                            final added = context
+                                                .read<TagsProvider>()
+                                                .addTag(name);
+                                            if (!added) return;
+                                            setState(() {
+                                              _selectedTag = name.trim();
+                                              _newTagController.clear();
+                                            });
+                                          },
+                                          icon: const Icon(Icons.add_circle),
+                                          tooltip: 'Add tag',
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _focusPlanController,
+                              decoration: const InputDecoration(
+                                labelText: 'What task are you focusing on?',
+                                prefixIcon: Icon(Icons.center_focus_strong),
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              textCapitalization: TextCapitalization.sentences,
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _restPlanController,
+                              decoration: const InputDecoration(
+                                labelText: 'How will you rest?',
+                                prefixIcon: Icon(Icons.self_improvement),
+                                border: OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                              textCapitalization: TextCapitalization.sentences,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 32),
+                    _PhaseDisplay(
+                      label: 'FOCUS',
+                      remaining: focusRemaining,
+                      total: widget.timer.focusTime,
+                      active: _phase == _Phase.focus,
+                      color: theme.colorScheme.primary,
+                      overtime: _isOvertime,
+                    ),
+                    const SizedBox(height: 32),
+                    _PhaseDisplay(
+                      label: 'REST',
+                      remaining: restRemaining,
+                      total: widget.timer.restTime,
+                      active: _phase == _Phase.rest,
+                      color: AppColors.coral,
+                    ),
+                    const SizedBox(height: 32),
+                    Text(
+                      _isOvertime
+                          ? 'Overtime'
+                          : (_running ? 'Running' : 'Paused'),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton.filledTonal(
+                          onPressed: _reset,
+                          icon: const Icon(Icons.restart_alt),
+                          tooltip: 'Reset',
+                        ),
+                        const SizedBox(width: 24),
+                        FloatingActionButton.large(
+                          onPressed: () {
+                            if (_isOvertime) {
+                              _advanceToRest();
+                            } else if (_running) {
+                              _pause();
+                            } else {
+                              _start();
+                            }
+                          },
+                          tooltip: _isOvertime
+                              ? 'Skip to rest'
+                              : (_running ? 'Pause' : 'Start'),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            child: Icon(
+                              _isOvertime
+                                  ? Icons.skip_next
+                                  : (_running ? Icons.pause : Icons.play_arrow),
+                              key: ValueKey<String>('$_isOvertime$_running'),
+                              size: 40,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -230,8 +378,7 @@ class _PhaseDisplay extends StatelessWidget {
     final totalSeconds = total.inSeconds;
     final progress = totalSeconds <= 0
         ? 0.0
-        : ((totalSeconds - remaining.inSeconds) / totalSeconds)
-            .clamp(0.0, 1.0);
+        : ((totalSeconds - remaining.inSeconds) / totalSeconds).clamp(0.0, 1.0);
 
     return SizedBox(
       width: 280,

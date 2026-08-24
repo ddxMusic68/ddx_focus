@@ -39,9 +39,7 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> _saveSettings() async {
     final file = await _file;
-    final json = {
-      'themeMode': _themeMode.name,
-    };
+    final json = {'themeMode': _themeMode.name};
     await file.writeAsString(jsonEncode(json));
   }
 }

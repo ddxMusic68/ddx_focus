@@ -94,9 +94,7 @@ class _AddTimerSheetState extends State<AddTimerSheet> {
                       border: OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                    ],
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     validator: _validateMinutes,
                   ),
                 ),
@@ -109,9 +107,7 @@ class _AddTimerSheetState extends State<AddTimerSheet> {
                       border: OutlineInputBorder(),
                     ),
                     keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                    ],
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     validator: _validateMinutes,
                   ),
                 ),

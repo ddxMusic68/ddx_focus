@@ -11,9 +11,7 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Settings'),
-      ),
+      appBar: AppBar(title: const Text('Settings')),
       body: Consumer<SettingsProvider>(
         builder: (context, settings, child) {
           return ListView(
@@ -26,18 +24,9 @@ class SettingsScreen extends StatelessWidget {
                 },
                 child: Column(
                   children: [
-                    _ThemeTile(
-                      title: 'System',
-                      value: AppThemeMode.system,
-                    ),
-                    _ThemeTile(
-                      title: 'Light',
-                      value: AppThemeMode.light,
-                    ),
-                    _ThemeTile(
-                      title: 'Dark',
-                      value: AppThemeMode.dark,
-                    ),
+                    _ThemeTile(title: 'System', value: AppThemeMode.system),
+                    _ThemeTile(title: 'Light', value: AppThemeMode.light),
+                    _ThemeTile(title: 'Dark', value: AppThemeMode.dark),
                   ],
                 ),
               ),
@@ -173,18 +162,13 @@ class _ThemeTile extends StatelessWidget {
   final String title;
   final AppThemeMode value;
 
-  const _ThemeTile({
-    required this.title,
-    required this.value,
-  });
+  const _ThemeTile({required this.title, required this.value});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Radio<AppThemeMode>(
-          value: value,
-        ),
+        Radio<AppThemeMode>(value: value),
         Text(title),
       ],
     );
