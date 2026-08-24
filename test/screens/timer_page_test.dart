@@ -137,6 +137,41 @@ void main() {
       expect(find.text('work'), findsNothing);
       expect(find.byType(ChoiceChip), findsNothing);
     });
+
+    testWidgets('several chips can be selected at the same time', (
+      tester,
+    ) async {
+      await pumpTimerPage(tester);
+
+      Future<void> addTag(String name) async {
+        await tester.enterText(find.widgetWithText(TextField, 'New tag'), name);
+        await tester.tap(find.byTooltip('Add tag'));
+        await tester.pump();
+      }
+
+      bool isSelected(String name) => tester
+          .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, name))
+          .selected;
+
+      await addTag('work');
+      await addTag('study');
+
+      // Both freshly created tags stay selected side by side.
+      expect(isSelected('work'), isTrue);
+      expect(isSelected('study'), isTrue);
+
+      // Tapping a chip toggles only that chip off.
+      await tester.tap(find.text('work'));
+      await tester.pump();
+      expect(isSelected('work'), isFalse);
+      expect(isSelected('study'), isTrue);
+
+      // And tapping it again brings both back.
+      await tester.tap(find.text('work'));
+      await tester.pump();
+      expect(isSelected('work'), isTrue);
+      expect(isSelected('study'), isTrue);
+    });
   });
 
   group('session recording', () {
@@ -160,6 +195,11 @@ void main() {
       );
       await tester.tap(find.byTooltip('Add tag'));
       await tester.enterText(
+        find.widgetWithText(TextField, 'New tag'),
+        'study',
+      );
+      await tester.tap(find.byTooltip('Add tag'));
+      await tester.enterText(
         find.widgetWithText(TextField, 'What task are you focusing on?'),
         'write report',
       );
@@ -179,7 +219,7 @@ void main() {
 
       expect(sessions.sessions, hasLength(1));
       final session = sessions.sessions.single;
-      expect(session.tag, 'deep work');
+      expect(session.tags, unorderedEquals(['deep work', 'study']));
       expect(session.focusPlan, 'write report');
       expect(session.restPlan, 'stretch');
       // Recording happens on the zero-crossing tick, so elapsed equals

@@ -28,7 +28,7 @@ String _formatDuration(Duration d) {
 /// phase. The config is passed by value, so edits or deletes made on the
 /// home screen never affect a running session.
 ///
-/// The user can also capture session metadata: pick or create a tag,
+/// The user can also capture session metadata: pick or create tags,
 /// note what they're focusing on, and how they plan to rest. Completing
 /// the focus phase records a [PomodoroSession].
 class TimerPage extends StatefulWidget {
@@ -49,7 +49,9 @@ class _TimerPageState extends State<TimerPage> {
   bool _focusOverflowAnnounced = false;
 
   /// Session metadata entered by the user on this page.
-  String? _selectedTag;
+  ///
+  /// Multiple tags can be active at once.
+  final Set<String> _selectedTags = {};
   final _newTagController = TextEditingController();
   final _focusPlanController = TextEditingController();
   final _restPlanController = TextEditingController();
@@ -122,7 +124,7 @@ class _TimerPageState extends State<TimerPage> {
     final overtime = _remaining.isNegative ? -_remaining : Duration.zero;
     context.read<SessionsProvider>().record(
       PomodoroSession(
-        tag: _selectedTag ?? '',
+        tags: _selectedTags.toList(),
         focusPlan: _focusPlanController.text.trim(),
         restPlan: _restPlanController.text.trim(),
         startedAt: _startedAt ?? DateTime.now(),
@@ -131,12 +133,24 @@ class _TimerPageState extends State<TimerPage> {
     );
   }
 
-  /// Deletes [tag] from the user's tag list, clearing the selection when
-  /// the removed tag was active. Existing sessions keep their own copy.
+  /// Adds [tag] to the active selection, or removes it when [selected] is
+  /// false.
+  void _toggleTag(String tag, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedTags.add(tag);
+      } else {
+        _selectedTags.remove(tag);
+      }
+    });
+  }
+
+  /// Deletes [tag] from the user's tag list and deselects it when it was
+  /// among the active tags. Existing sessions keep their own copy.
   void _deleteTag(String tag) {
     final removed = context.read<TagsProvider>().removeTag(tag);
-    if (removed && _selectedTag == tag) {
-      setState(() => _selectedTag = null);
+    if (removed && _selectedTags.contains(tag)) {
+      setState(() => _selectedTags.remove(tag));
     }
   }
 
@@ -203,14 +217,10 @@ class _TimerPageState extends State<TimerPage> {
                                                   _deleteTag(tag),
                                               child: ChoiceChip(
                                                 label: Text(tag),
-                                                selected: _selectedTag == tag,
-                                                onSelected: (selected) {
-                                                  setState(() {
-                                                    _selectedTag = selected
-                                                        ? tag
-                                                        : null;
-                                                  });
-                                                },
+                                                selected: _selectedTags
+                                                    .contains(tag),
+                                                onSelected: (selected) =>
+                                                    _toggleTag(tag, selected),
                                               ),
                                             ),
                                         ],
@@ -238,7 +248,7 @@ class _TimerPageState extends State<TimerPage> {
                                                 .addTag(name);
                                             if (!added) return;
                                             setState(() {
-                                              _selectedTag = name.trim();
+                                              _selectedTags.add(name.trim());
                                               _newTagController.clear();
                                             });
                                           },

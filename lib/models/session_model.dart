@@ -8,15 +8,15 @@ import 'package:flutter/foundation.dart';
 @immutable
 class PomodoroSession {
   const PomodoroSession({
-    required this.tag,
+    required this.tags,
     required this.focusPlan,
     required this.restPlan,
     required this.startedAt,
     required this.focusElapsed,
   });
 
-  /// Tag chosen for this session; empty string when none was selected.
-  final String tag;
+  /// Tags chosen for this session; empty list when none was selected.
+  final List<String> tags;
 
   /// What the user said they would focus on.
   final String focusPlan;
@@ -32,14 +32,14 @@ class PomodoroSession {
   final Duration focusElapsed;
 
   PomodoroSession copyWith({
-    String? tag,
+    List<String>? tags,
     String? focusPlan,
     String? restPlan,
     DateTime? startedAt,
     Duration? focusElapsed,
   }) {
     return PomodoroSession(
-      tag: tag ?? this.tag,
+      tags: tags ?? this.tags,
       focusPlan: focusPlan ?? this.focusPlan,
       restPlan: restPlan ?? this.restPlan,
       startedAt: startedAt ?? this.startedAt,
@@ -49,7 +49,7 @@ class PomodoroSession {
 
   Map<String, dynamic> toJson() {
     return {
-      'tag': tag,
+      'tags': tags,
       'focusPlan': focusPlan,
       'restPlan': restPlan,
       'startedAt': startedAt.toIso8601String(),
@@ -58,8 +58,15 @@ class PomodoroSession {
   }
 
   factory PomodoroSession.fromJson(Map<String, dynamic> json) {
+    final rawTags = json['tags'];
     return PomodoroSession(
-      tag: json['tag'] as String? ?? '',
+      tags: rawTags is List
+          ? rawTags.cast<String>()
+          // Legacy single-tag sessions written before multi-select.
+          : [
+              if ((json['tag'] as String? ?? '').isNotEmpty)
+                json['tag'] as String,
+            ],
       focusPlan: json['focusPlan'] as String? ?? '',
       restPlan: json['restPlan'] as String? ?? '',
       startedAt: DateTime.parse(json['startedAt'] as String),
@@ -71,7 +78,7 @@ class PomodoroSession {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is PomodoroSession &&
-        other.tag == tag &&
+        listEquals(other.tags, tags) &&
         other.focusPlan == focusPlan &&
         other.restPlan == restPlan &&
         other.startedAt == startedAt &&
@@ -80,5 +87,5 @@ class PomodoroSession {
 
   @override
   int get hashCode =>
-      Object.hash(tag, focusPlan, restPlan, startedAt, focusElapsed);
+      Object.hashAll([tags, focusPlan, restPlan, startedAt, focusElapsed]);
 }
