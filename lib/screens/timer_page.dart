@@ -7,6 +7,7 @@ import '../models/session_model.dart';
 import '../models/timer_model.dart';
 import '../providers/sessions_provider.dart';
 import '../providers/tags_provider.dart';
+import 'session_review_screen.dart';
 import '../utils/constants.dart';
 
 enum _Phase { focus, rest }
@@ -30,7 +31,8 @@ String _formatDuration(Duration d) {
 ///
 /// The user can also capture session metadata: pick or create tags,
 /// note what they're focusing on, and how they plan to rest. Completing
-/// the focus phase records a [PomodoroSession].
+/// a full focus + rest round opens the review screen and records a
+/// [PomodoroSession].
 class TimerPage extends StatefulWidget {
   final PomodoroTimer timer;
 
@@ -47,6 +49,11 @@ class _TimerPageState extends State<TimerPage> {
   late Duration _remaining = widget.timer.focusTime;
   Timer? _ticker;
   bool _focusOverflowAnnounced = false;
+
+  /// Focus time actually elapsed when the focus phase ended — planned time
+  /// plus overtime, or less when focus was skipped. Folded into the
+  /// recorded session's [PomodoroSession.focusElapsed].
+  Duration _focusElapsedAtEnd = Duration.zero;
 
   /// Session metadata entered by the user on this page.
   ///
@@ -103,34 +110,55 @@ class _TimerPageState extends State<TimerPage> {
       if (_phase == _Phase.rest && _remaining <= Duration.zero) {
         _ticker?.cancel();
         _ticker = null;
-        _phase = _Phase.focus;
-        _remaining = widget.timer.focusTime;
-        _focusOverflowAnnounced = false;
-        _announce('Rest complete — ready for another round?');
+        _announce('Rest complete — log your round.');
+        unawaited(_completeCycle());
         return;
       }
       if (_phase == _Phase.focus &&
           !_focusOverflowAnnounced &&
           _remaining <= Duration.zero) {
         _focusOverflowAnnounced = true;
-        _recordSession();
         _announce('Focus complete — tap the button to start your rest.');
       }
     });
   }
 
-  /// Records a [PomodoroSession] for the just-completed focus phase.
-  void _recordSession() {
-    final overtime = _remaining.isNegative ? -_remaining : Duration.zero;
+  /// Opens the review screen for the finished round, records the resulting
+  /// [PomodoroSession] (unrated when the review was dismissed), and resets
+  /// the runner to an idle focus phase.
+  Future<void> _completeCycle() async {
+    final result = await Navigator.of(context).push<SessionReviewResult>(
+      MaterialPageRoute(builder: (_) => const SessionReviewScreen()),
+    );
+    if (!mounted) return;
     context.read<SessionsProvider>().record(
       PomodoroSession(
         tags: _selectedTags.toList(),
         focusPlan: _focusPlanController.text.trim(),
         restPlan: _restPlanController.text.trim(),
         startedAt: _startedAt ?? DateTime.now(),
-        focusElapsed: widget.timer.focusTime + overtime,
+        focusElapsed: _focusElapsedAtEnd,
+        focusRating: result?.focusRating,
+        focusReview: _buildReview(result),
       ),
     );
+    setState(() {
+      _phase = _Phase.focus;
+      _remaining = widget.timer.focusTime;
+      _focusElapsedAtEnd = Duration.zero;
+      _focusOverflowAnnounced = false;
+    });
+    _announce('Round logged — ready for another one?');
+  }
+
+  /// Merges the review answers into a single recap string.
+  String? _buildReview(SessionReviewResult? result) {
+    if (result == null) return null;
+    final parts = [
+      if (result.doneText.isNotEmpty) result.doneText,
+      if (result.reason != null) 'Why: ${result.reason}',
+    ];
+    return parts.isEmpty ? null : parts.join('\n');
   }
 
   /// Adds [tag] to the active selection, or removes it when [selected] is
@@ -155,14 +183,33 @@ class _TimerPageState extends State<TimerPage> {
   }
 
   /// Leaves focus overtime and starts the rest phase immediately.
+  /// Ends the focus phase and starts rest, capturing how long focus
+  /// actually ran.
   void _advanceToRest() {
     setState(() {
+      _focusElapsedAtEnd = widget.timer.focusTime - _remaining;
       _ticker?.cancel();
       _focusOverflowAnnounced = false;
       _phase = _Phase.rest;
       _remaining = widget.timer.restTime;
       _ticker = Timer.periodic(_tickInterval, (_) => _tick());
     });
+  }
+
+  /// Jumps past the current phase: focus goes straight to rest; rest goes
+  /// straight to the post-round review. Hidden during focus overtime,
+  /// where the main button already offers "skip to rest".
+  void _skipPhase() {
+    if (_isOvertime) return;
+    if (_phase == _Phase.rest) {
+      setState(() {
+        _ticker?.cancel();
+        _ticker = null;
+      });
+      unawaited(_completeCycle());
+      return;
+    }
+    _advanceToRest();
   }
 
   void _announce(String message) {
@@ -336,17 +383,24 @@ class _TimerPageState extends State<TimerPage> {
                           tooltip: _isOvertime
                               ? 'Skip to rest'
                               : (_running ? 'Pause' : 'Start'),
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 200),
-                            child: Icon(
-                              _isOvertime
-                                  ? Icons.skip_next
-                                  : (_running ? Icons.pause : Icons.play_arrow),
-                              key: ValueKey<String>('$_isOvertime$_running'),
-                              size: 40,
-                            ),
+                          // Plain icon: an AnimatedSwitcher here produced
+                          // duplicate-key crashes when states toggled fast.
+                          child: Icon(
+                            _isOvertime
+                                ? Icons.skip_next
+                                : (_running ? Icons.pause : Icons.play_arrow),
+                            size: 40,
                           ),
                         ),
+                        const SizedBox(width: 24),
+                        if (!_isOvertime)
+                          IconButton.filledTonal(
+                            onPressed: _skipPhase,
+                            icon: const Icon(Icons.skip_next),
+                            tooltip: _phase == _Phase.rest
+                                ? 'Skip rest'
+                                : 'Skip focus',
+                          ),
                       ],
                     ),
                   ],

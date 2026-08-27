@@ -2,9 +2,10 @@ import 'package:flutter/foundation.dart';
 
 /// A recorded pomodoro focus session.
 ///
-/// Captured when a focus phase completes so it can later be listed in
-/// History and aggregated in Stats. Tags and plans are copied by value, so
-/// deleting a tag never alters existing sessions.
+/// Captured when a full focus + rest round completes (via the review
+/// screen) so it can later be listed in History and aggregated in Stats.
+/// Tags and plans are copied by value, so deleting a tag never alters
+/// existing sessions.
 @immutable
 class PomodoroSession {
   const PomodoroSession({
@@ -13,6 +14,8 @@ class PomodoroSession {
     required this.restPlan,
     required this.startedAt,
     required this.focusElapsed,
+    this.focusRating,
+    this.focusReview,
   });
 
   /// Tags chosen for this session; empty list when none was selected.
@@ -28,8 +31,15 @@ class PomodoroSession {
   final DateTime startedAt;
 
   /// How long the focus phase actually ran, including any overtime the
-  /// user let elapse past zero.
+  /// user let elapse past zero before advancing to rest.
   final Duration focusElapsed;
+
+  /// How focused the user felt, from 1 to 5; null when the round wasn't
+  /// rated (e.g. the review screen was dismissed).
+  final int? focusRating;
+
+  /// Free-form recap written after the round; null when skipped.
+  final String? focusReview;
 
   PomodoroSession copyWith({
     List<String>? tags,
@@ -37,6 +47,8 @@ class PomodoroSession {
     String? restPlan,
     DateTime? startedAt,
     Duration? focusElapsed,
+    int? focusRating,
+    String? focusReview,
   }) {
     return PomodoroSession(
       tags: tags ?? this.tags,
@@ -44,6 +56,8 @@ class PomodoroSession {
       restPlan: restPlan ?? this.restPlan,
       startedAt: startedAt ?? this.startedAt,
       focusElapsed: focusElapsed ?? this.focusElapsed,
+      focusRating: focusRating ?? this.focusRating,
+      focusReview: focusReview ?? this.focusReview,
     );
   }
 
@@ -54,6 +68,8 @@ class PomodoroSession {
       'restPlan': restPlan,
       'startedAt': startedAt.toIso8601String(),
       'focusSeconds': focusElapsed.inSeconds,
+      'focusRating': focusRating,
+      'focusReview': focusReview,
     };
   }
 
@@ -71,6 +87,8 @@ class PomodoroSession {
       restPlan: json['restPlan'] as String? ?? '',
       startedAt: DateTime.parse(json['startedAt'] as String),
       focusElapsed: Duration(seconds: json['focusSeconds'] as int),
+      focusRating: json['focusRating'] as int?,
+      focusReview: json['focusReview'] as String?,
     );
   }
 
@@ -82,10 +100,19 @@ class PomodoroSession {
         other.focusPlan == focusPlan &&
         other.restPlan == restPlan &&
         other.startedAt == startedAt &&
-        other.focusElapsed == focusElapsed;
+        other.focusElapsed == focusElapsed &&
+        other.focusRating == focusRating &&
+        other.focusReview == focusReview;
   }
 
   @override
-  int get hashCode =>
-      Object.hashAll([tags, focusPlan, restPlan, startedAt, focusElapsed]);
+  int get hashCode => Object.hashAll([
+    tags,
+    focusPlan,
+    restPlan,
+    startedAt,
+    focusElapsed,
+    focusRating,
+    focusReview,
+  ]);
 }

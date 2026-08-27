@@ -77,7 +77,8 @@ void main() {
     });
 
     testWidgets(
-      'advancing from overtime activates rest and resets after it ends',
+      'advancing from overtime activates rest and opens the review screen '
+      'when rest ends',
       (tester) async {
         await pumpTimerPage(tester);
 
@@ -95,8 +96,16 @@ void main() {
         expect(restColor, AppColors.coral);
         expect(focusColor, theme.disabledColor);
 
-        // Rest runs out and the cycle resets to an idle focus phase.
+        // Rest runs out and the post-round review screen opens instead of
+        // resetting right away.
         await tester.pump(const Duration(seconds: 2));
+        await tester.pumpAndSettle();
+
+        expect(find.text('How focused were you?'), findsOneWidget);
+
+        // Backing out still resets the runner to an idle focus phase.
+        await tester.pageBack();
+        await tester.pumpAndSettle();
 
         expect(find.text('00:03'), findsOneWidget);
         expect(find.text('Paused'), findsOneWidget);
@@ -175,7 +184,7 @@ void main() {
   });
 
   group('session recording', () {
-    testWidgets('completing focus records a session with metadata', (
+    testWidgets('completing focus and rest records a reviewed session', (
       tester,
     ) async {
       final sessions = SessionsProvider();
@@ -209,22 +218,129 @@ void main() {
       );
       await tester.pump();
 
-      // The tag chip grows the page; bring the FAB into view first.
+      // The tag chips grow the page; bring the FAB into view first.
       await tester.ensureVisible(find.byType(FloatingActionButton));
       await tester.pump();
 
+      // Run the full round: 3s focus plus 1s of overtime, then rest.
       await tester.tap(find.byType(FloatingActionButton));
-      // 4 ticks: 3s of focus plus 1s of overtime.
       await tester.pump(const Duration(seconds: 4));
+
+      await tester.ensureVisible(find.byType(FloatingActionButton));
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 2));
+
+      // Rest ran out and the review screen opened.
+      await tester.pumpAndSettle();
+      expect(find.text('What did you get done?'), findsOneWidget);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'What did you get done?'),
+        'finished draft',
+      );
+      await tester.tap(find.byIcon(Icons.star_border).at(3));
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Why? (optional)'),
+        'phone buzzed',
+      );
+
+      await tester.tap(find.text('Save round'));
+      await tester.pumpAndSettle();
 
       expect(sessions.sessions, hasLength(1));
       final session = sessions.sessions.single;
       expect(session.tags, unorderedEquals(['deep work', 'study']));
       expect(session.focusPlan, 'write report');
       expect(session.restPlan, 'stretch');
-      // Recording happens on the zero-crossing tick, so elapsed equals
-      // the full planned focus time.
-      expect(session.focusElapsed, const Duration(seconds: 3));
+      expect(session.focusRating, 4);
+      expect(session.focusReview, contains('finished draft'));
+      expect(session.focusReview, contains('phone buzzed'));
+      // Elapsed covers the planned 3s plus the 1s of overtime before the
+      // user advanced to rest.
+      expect(session.focusElapsed, const Duration(seconds: 4));
+
+      // The runner reset to an idle focus phase behind the review screen.
+      expect(find.text('00:03'), findsOneWidget);
+      expect(find.text('Paused'), findsOneWidget);
+    });
+  });
+
+  group('skipping', () {
+    testWidgets('skipping focus jumps to rest and shortens the session', (
+      tester,
+    ) async {
+      final sessions = SessionsProvider();
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<TagsProvider>(create: (_) => TagsProvider()),
+            ChangeNotifierProvider<SessionsProvider>.value(value: sessions),
+          ],
+          child: MaterialApp(home: TimerPage(timer: _timer)),
+        ),
+      );
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pump(const Duration(seconds: 1));
+
+      await tester.tap(find.byTooltip('Skip focus'));
+      await tester.pump();
+
+      final context = tester.element(find.byType(TimerPage));
+      final theme = Theme.of(context);
+      expect(
+        tester.widget<Text>(find.text('00:02')).style?.color,
+        AppColors.coral,
+      );
+      expect(
+        tester.widget<Text>(find.text('00:03')).style?.color,
+        theme.disabledColor,
+      );
+
+      // Let rest finish; the review opens with the shortened elapsed.
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      expect(sessions.sessions, hasLength(1));
+      expect(sessions.sessions.single.focusElapsed, const Duration(seconds: 1));
+    });
+
+    testWidgets('skipping rest opens the review screen right away', (
+      tester,
+    ) async {
+      final sessions = SessionsProvider();
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<TagsProvider>(create: (_) => TagsProvider()),
+            ChangeNotifierProvider<SessionsProvider>.value(value: sessions),
+          ],
+          child: MaterialApp(home: TimerPage(timer: _timer)),
+        ),
+      );
+
+      // Reach rest quickly via overtime, then skip it.
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 4));
+      await tester.ensureVisible(find.byType(FloatingActionButton));
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pump();
+
+      await tester.tap(find.byTooltip('Skip rest'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('How focused were you?'), findsOneWidget);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      expect(sessions.sessions, hasLength(1));
+      expect(sessions.sessions.single.focusRating, isNull);
+      expect(find.text('Paused'), findsOneWidget);
     });
   });
 
