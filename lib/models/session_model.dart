@@ -16,7 +16,8 @@ class PomodoroSession {
     required this.focusElapsed,
     required this.restElapsed,
     this.focusRating,
-    this.focusReview,
+    this.focusAccomplished,
+    this.focusReason,
   });
 
   /// Tags chosen for this session; empty list when none was selected.
@@ -44,8 +45,11 @@ class PomodoroSession {
   /// rated (e.g. the review screen was dismissed).
   final int? focusRating;
 
-  /// Free-form recap written after the round; null when skipped.
-  final String? focusReview;
+  /// What the user says they accomplished during the focus phase.
+  final String? focusAccomplished;
+
+  /// Why the user rated their focus the way they did; null when skipped.
+  final String? focusReason;
 
   PomodoroSession copyWith({
     List<String>? tags,
@@ -55,7 +59,8 @@ class PomodoroSession {
     Duration? focusElapsed,
     Duration? restElapsed,
     int? focusRating,
-    String? focusReview,
+    String? focusAccomplished,
+    String? focusReason,
   }) {
     return PomodoroSession(
       tags: tags ?? this.tags,
@@ -65,7 +70,8 @@ class PomodoroSession {
       focusElapsed: focusElapsed ?? this.focusElapsed,
       restElapsed: restElapsed ?? this.restElapsed,
       focusRating: focusRating ?? this.focusRating,
-      focusReview: focusReview ?? this.focusReview,
+      focusAccomplished: focusAccomplished ?? this.focusAccomplished,
+      focusReason: focusReason ?? this.focusReason,
     );
   }
 
@@ -78,12 +84,29 @@ class PomodoroSession {
       'focusSeconds': focusElapsed.inSeconds,
       'restSeconds': restElapsed.inSeconds,
       'focusRating': focusRating,
-      'focusReview': focusReview,
+      'focusAccomplished': focusAccomplished,
+      'focusReason': focusReason,
     };
+  }
+
+  /// Splits a legacy merged `focusReview` string ("done\nWhy: reason") back
+  /// into its two parts. Returns [focusAccomplished] and [focusReason].
+  static ({String? done, String? reason}) _splitLegacyReview(String? review) {
+    if (review == null || review.isEmpty) return (done: null, reason: null);
+    final marker = '\nWhy: ';
+    final markerIndex = review.indexOf(marker);
+    if (markerIndex < 0) return (done: review, reason: null);
+    final reason = review.substring(markerIndex + marker.length).trim();
+    final done = review.substring(0, markerIndex).trim();
+    return (
+      done: done.isEmpty ? null : done,
+      reason: reason.isEmpty ? null : reason,
+    );
   }
 
   factory PomodoroSession.fromJson(Map<String, dynamic> json) {
     final rawTags = json['tags'];
+    final legacy = _splitLegacyReview(json['focusReview'] as String?);
     return PomodoroSession(
       tags: rawTags is List
           ? rawTags.cast<String>()
@@ -99,7 +122,10 @@ class PomodoroSession {
       // Older sessions had no rest measurement; default to zero.
       restElapsed: Duration(seconds: json['restSeconds'] as int? ?? 0),
       focusRating: json['focusRating'] as int?,
-      focusReview: json['focusReview'] as String?,
+      // New sessions write the parts directly; older ones wrote a single
+      // merged `focusReview` field that we split above.
+      focusAccomplished: json['focusAccomplished'] as String? ?? legacy.done,
+      focusReason: json['focusReason'] as String? ?? legacy.reason,
     );
   }
 
@@ -114,7 +140,8 @@ class PomodoroSession {
         other.focusElapsed == focusElapsed &&
         other.restElapsed == restElapsed &&
         other.focusRating == focusRating &&
-        other.focusReview == focusReview;
+        other.focusAccomplished == focusAccomplished &&
+        other.focusReason == focusReason;
   }
 
   @override
@@ -126,6 +153,7 @@ class PomodoroSession {
     focusElapsed,
     restElapsed,
     focusRating,
-    focusReview,
+    focusAccomplished,
+    focusReason,
   ]);
 }

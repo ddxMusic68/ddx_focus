@@ -21,19 +21,27 @@ class SessionEditScreen extends StatefulWidget {
 }
 
 class _SessionEditScreenState extends State<SessionEditScreen> {
-  late final TextEditingController _focusPlanController =
-      TextEditingController(text: widget.session.focusPlan);
-  late final TextEditingController _restPlanController =
-      TextEditingController(text: widget.session.restPlan);
-  late final TextEditingController _reviewController =
-      TextEditingController(text: widget.session.focusReview ?? '');
+  late final TextEditingController _focusPlanController = TextEditingController(
+    text: widget.session.focusPlan,
+  );
+  late final TextEditingController _restPlanController = TextEditingController(
+    text: widget.session.restPlan,
+  );
+  late final TextEditingController _reviewDoneController =
+      TextEditingController(text: widget.session.focusAccomplished ?? '');
+  late final TextEditingController _reviewReasonController =
+      TextEditingController(text: widget.session.focusReason ?? '');
   late final TextEditingController _startedAtController = TextEditingController(
     text: _formatDateTime(widget.session.startedAt),
   );
   late final TextEditingController _focusMinutesController =
-      TextEditingController(text: widget.session.focusElapsed.inMinutes.toString());
+      TextEditingController(
+        text: widget.session.focusElapsed.inMinutes.toString(),
+      );
   late final TextEditingController _restMinutesController =
-      TextEditingController(text: widget.session.restElapsed.inMinutes.toString());
+      TextEditingController(
+        text: widget.session.restElapsed.inMinutes.toString(),
+      );
 
   late DateTime _startedAt = widget.session.startedAt;
   late int _rating = widget.session.focusRating ?? 0;
@@ -43,7 +51,8 @@ class _SessionEditScreenState extends State<SessionEditScreen> {
   void dispose() {
     _focusPlanController.dispose();
     _restPlanController.dispose();
-    _reviewController.dispose();
+    _reviewDoneController.dispose();
+    _reviewReasonController.dispose();
     _startedAtController.dispose();
     _focusMinutesController.dispose();
     _restMinutesController.dispose();
@@ -72,8 +81,11 @@ class _SessionEditScreenState extends State<SessionEditScreen> {
     if (time == null || !mounted) return;
     setState(() {
       _startedAt = DateTime(
-        date.year, date.month, date.day,
-        time.hour, time.minute,
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
       );
       _startedAtController.text = _formatDateTime(_startedAt);
     });
@@ -94,9 +106,12 @@ class _SessionEditScreenState extends State<SessionEditScreen> {
         focusElapsed: _parseMinutes(_focusMinutesController),
         restElapsed: _parseMinutes(_restMinutesController),
         focusRating: _rating == 0 ? null : _rating,
-        focusReview: _reviewController.text.trim().isEmpty
+        focusAccomplished: _reviewDoneController.text.trim().isEmpty
             ? null
-            : _reviewController.text.trim(),
+            : _reviewDoneController.text.trim(),
+        focusReason: _reviewReasonController.text.trim().isEmpty
+            ? null
+            : _reviewReasonController.text.trim(),
       ),
     );
   }
@@ -115,36 +130,13 @@ class _SessionEditScreenState extends State<SessionEditScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  TextField(
-                    controller: _focusPlanController,
-                    decoration: const InputDecoration(
-                      labelText: 'Focus plan',
-                      prefixIcon: Icon(Icons.center_focus_strong),
-                      border: OutlineInputBorder(),
+                  _TagsEditor(
+                    selected: _selectedTags,
+                    onChanged: (tags) => setState(
+                      () => _selectedTags
+                        ..clear()
+                        ..addAll(tags),
                     ),
-                    textCapitalization: TextCapitalization.sentences,
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _restPlanController,
-                    decoration: const InputDecoration(
-                      labelText: 'Rest plan',
-                      prefixIcon: Icon(Icons.self_improvement),
-                      border: OutlineInputBorder(),
-                    ),
-                    textCapitalization: TextCapitalization.sentences,
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _reviewController,
-                    decoration: const InputDecoration(
-                      labelText: 'Review recap',
-                      prefixIcon: Icon(Icons.notes),
-                      border: OutlineInputBorder(),
-                    ),
-                    textCapitalization: TextCapitalization.sentences,
-                    minLines: 2,
-                    maxLines: 4,
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -180,7 +172,7 @@ class _SessionEditScreenState extends State<SessionEditScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 4),
                   Text(
                     'Started:  ${_startedAtController.text}',
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -188,9 +180,36 @@ class _SessionEditScreenState extends State<SessionEditScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _TagsEditor(
-                    selected: _selectedTags,
-                    onChanged: (tags) => setState(() => _selectedTags..clear()..addAll(tags)),
+                  TextField(
+                    controller: _focusPlanController,
+                    decoration: const InputDecoration(
+                      labelText: 'Focus plan',
+                      prefixIcon: Icon(Icons.center_focus_strong),
+                      border: OutlineInputBorder(),
+                    ),
+                    textCapitalization: TextCapitalization.sentences,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _restPlanController,
+                    decoration: const InputDecoration(
+                      labelText: 'Rest plan',
+                      prefixIcon: Icon(Icons.self_improvement),
+                      border: OutlineInputBorder(),
+                    ),
+                    textCapitalization: TextCapitalization.sentences,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _reviewDoneController,
+                    decoration: const InputDecoration(
+                      labelText: 'What did you accomplish?',
+                      prefixIcon: Icon(Icons.task_alt),
+                      border: OutlineInputBorder(),
+                    ),
+                    textCapitalization: TextCapitalization.sentences,
+                    minLines: 2,
+                    maxLines: 4,
                   ),
                   const SizedBox(height: 24),
                   Text(
@@ -212,6 +231,18 @@ class _SessionEditScreenState extends State<SessionEditScreen> {
                           tooltip: '$i star${i > 1 ? 's' : ''}',
                         ),
                     ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _reviewReasonController,
+                    decoration: const InputDecoration(
+                      labelText: 'Why this focus rating?',
+                      prefixIcon: Icon(Icons.psychology_alt),
+                      border: OutlineInputBorder(),
+                    ),
+                    textCapitalization: TextCapitalization.sentences,
+                    minLines: 2,
+                    maxLines: 4,
                   ),
                   const SizedBox(height: 24),
                   FilledButton.icon(

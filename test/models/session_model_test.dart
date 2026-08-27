@@ -14,7 +14,8 @@ PomodoroSession _session() => PomodoroSession(
   focusElapsed: const Duration(minutes: 25, seconds: 30),
   restElapsed: const Duration(minutes: 5),
   focusRating: 4,
-  focusReview: 'finished draft\nWhy: phone buzzed',
+  focusAccomplished: 'finished draft',
+  focusReason: 'phone buzzed',
 );
 
 void main() {
@@ -29,7 +30,8 @@ void main() {
       expect(json['focusSeconds'], 1530);
       expect(json['restSeconds'], 300);
       expect(json['focusRating'], 4);
-      expect(json['focusReview'], 'finished draft\nWhy: phone buzzed');
+      expect(json['focusAccomplished'], 'finished draft');
+      expect(json['focusReason'], 'phone buzzed');
     });
 
     test('fromJson restores the original values', () {
@@ -59,8 +61,37 @@ void main() {
       });
 
       expect(session.focusRating, isNull);
-      expect(session.focusReview, isNull);
+      expect(session.focusAccomplished, isNull);
+      expect(session.focusReason, isNull);
       expect(session.focusElapsed, const Duration(minutes: 25));
+    });
+
+    test('fromJson splits a legacy merged focusReview into two fields', () {
+      final session = PomodoroSession.fromJson({
+        'tags': ['work'],
+        'focusPlan': '',
+        'restPlan': '',
+        'startedAt': _startedAt().toIso8601String(),
+        'focusSeconds': 1500,
+        'focusRating': 4,
+        'focusReview': 'finished draft\nWhy: phone buzzed',
+      });
+
+      expect(session.focusAccomplished, 'finished draft');
+      expect(session.focusReason, 'phone buzzed');
+    });
+
+    test('fromJson treats a plain legacy focusReview as accomplished', () {
+      final session = PomodoroSession.fromJson({
+        'focusReview': 'just a note',
+        'focusPlan': '',
+        'restPlan': '',
+        'startedAt': _startedAt().toIso8601String(),
+        'focusSeconds': 1500,
+      });
+
+      expect(session.focusAccomplished, 'just a note');
+      expect(session.focusReason, isNull);
     });
 
     test('fromJson falls back to a legacy single tag string', () {
@@ -112,7 +143,8 @@ void main() {
       expect(updated.restPlan, 'stretch');
       expect(updated.startedAt, _startedAt());
       expect(updated.focusElapsed, const Duration(minutes: 25, seconds: 30));
-      expect(updated.focusReview, 'finished draft\nWhy: phone buzzed');
+      expect(updated.focusAccomplished, 'finished draft');
+      expect(updated.focusReason, 'phone buzzed');
     });
 
     test('returns an equal instance when nothing is overridden', () {

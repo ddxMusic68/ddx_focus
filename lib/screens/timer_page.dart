@@ -148,7 +148,8 @@ class _TimerPageState extends State<TimerPage> {
         focusElapsed: _focusElapsedAtEnd,
         restElapsed: _restElapsedAtEnd,
         focusRating: result?.focusRating,
-        focusReview: _buildReview(result),
+        focusAccomplished: _cleanText(result?.doneText),
+        focusReason: _cleanText(result?.reason),
       ),
     );
     setState(() {
@@ -161,14 +162,10 @@ class _TimerPageState extends State<TimerPage> {
     _announce('Round logged — ready for another one?');
   }
 
-  /// Merges the review answers into a single recap string.
-  String? _buildReview(SessionReviewResult? result) {
-    if (result == null) return null;
-    final parts = [
-      if (result.doneText.isNotEmpty) result.doneText,
-      if (result.reason != null) 'Why: ${result.reason}',
-    ];
-    return parts.isEmpty ? null : parts.join('\n');
+  /// Trims [value] and returns null when it is blank.
+  String? _cleanText(String? value) {
+    final trimmed = value?.trim() ?? '';
+    return trimmed.isEmpty ? null : trimmed;
   }
 
   /// Adds [tag] to the active selection, or removes it when [selected] is

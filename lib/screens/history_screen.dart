@@ -60,8 +60,10 @@ class HistoryScreen extends StatelessWidget {
                 for (final session in byDay[day]!)
                   _SessionCard(
                     session: session,
-                    onEdit: () => _editSession(context, sessionsProvider, session),
-                    onDelete: () => _deleteSession(context, sessionsProvider, session),
+                    onEdit: () =>
+                        _editSession(context, sessionsProvider, session),
+                    onDelete: () =>
+                        _deleteSession(context, sessionsProvider, session),
                   ),
               ],
             ],
@@ -77,9 +79,7 @@ class HistoryScreen extends StatelessWidget {
     PomodoroSession session,
   ) async {
     final updated = await Navigator.of(context).push<PomodoroSession>(
-      MaterialPageRoute(
-        builder: (_) => SessionEditScreen(session: session),
-      ),
+      MaterialPageRoute(builder: (_) => SessionEditScreen(session: session)),
     );
     if (updated != null) {
       provider.update(session, updated);
@@ -206,11 +206,21 @@ class _SessionCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(session.focusPlan, style: theme.textTheme.bodyMedium),
             ],
-            if (session.focusReview != null &&
-                session.focusReview!.isNotEmpty) ...[
+            if (session.focusAccomplished != null &&
+                session.focusAccomplished!.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(
-                session.focusReview!,
+                'Did: ${session.focusAccomplished}',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+            if (session.focusReason != null &&
+                session.focusReason!.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Why: ${session.focusReason}',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -285,10 +295,7 @@ class _TimeLabel extends StatelessWidget {
       children: [
         Icon(icon, size: 14, color: color),
         const SizedBox(width: 2),
-        Text(
-          label,
-          style: theme.textTheme.labelSmall?.copyWith(color: color),
-        ),
+        Text(label, style: theme.textTheme.labelSmall?.copyWith(color: color)),
         const SizedBox(width: 4),
         Text(
           text,

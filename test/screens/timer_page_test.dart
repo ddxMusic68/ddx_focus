@@ -254,8 +254,8 @@ void main() {
       expect(session.focusPlan, 'write report');
       expect(session.restPlan, 'stretch');
       expect(session.focusRating, 4);
-      expect(session.focusReview, contains('finished draft'));
-      expect(session.focusReview, contains('phone buzzed'));
+      expect(session.focusAccomplished, 'finished draft');
+      expect(session.focusReason, 'phone buzzed');
       // Elapsed covers the planned 3s plus the 1s of overtime before the
       // user advanced to rest.
       expect(session.focusElapsed, const Duration(seconds: 4));
