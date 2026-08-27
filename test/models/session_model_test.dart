@@ -12,6 +12,7 @@ PomodoroSession _session() => PomodoroSession(
   restPlan: 'stretch',
   startedAt: _startedAt(),
   focusElapsed: const Duration(minutes: 25, seconds: 30),
+  restElapsed: const Duration(minutes: 5),
   focusRating: 4,
   focusReview: 'finished draft\nWhy: phone buzzed',
 );
@@ -26,6 +27,7 @@ void main() {
       expect(json['restPlan'], 'stretch');
       expect(json['startedAt'], _startedAt().toIso8601String());
       expect(json['focusSeconds'], 1530);
+      expect(json['restSeconds'], 300);
       expect(json['focusRating'], 4);
       expect(json['focusReview'], 'finished draft\nWhy: phone buzzed');
     });

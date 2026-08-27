@@ -55,6 +55,11 @@ class _TimerPageState extends State<TimerPage> {
   /// recorded session's [PomodoroSession.focusElapsed].
   Duration _focusElapsedAtEnd = Duration.zero;
 
+  /// Rest time actually elapsed when the rest phase ended — planned time,
+  /// or less when rest was skipped. Folded into the recorded session's
+  /// [PomodoroSession.restElapsed].
+  Duration _restElapsedAtEnd = Duration.zero;
+
   /// Session metadata entered by the user on this page.
   ///
   /// Multiple tags can be active at once.
@@ -100,6 +105,8 @@ class _TimerPageState extends State<TimerPage> {
       _ticker = null;
       _phase = _Phase.focus;
       _remaining = widget.timer.focusTime;
+      _focusElapsedAtEnd = Duration.zero;
+      _restElapsedAtEnd = Duration.zero;
       _focusOverflowAnnounced = false;
     });
   }
@@ -110,6 +117,7 @@ class _TimerPageState extends State<TimerPage> {
       if (_phase == _Phase.rest && _remaining <= Duration.zero) {
         _ticker?.cancel();
         _ticker = null;
+        _restElapsedAtEnd = widget.timer.restTime;
         _announce('Rest complete — log your round.');
         unawaited(_completeCycle());
         return;
@@ -138,6 +146,7 @@ class _TimerPageState extends State<TimerPage> {
         restPlan: _restPlanController.text.trim(),
         startedAt: _startedAt ?? DateTime.now(),
         focusElapsed: _focusElapsedAtEnd,
+        restElapsed: _restElapsedAtEnd,
         focusRating: result?.focusRating,
         focusReview: _buildReview(result),
       ),
@@ -146,6 +155,7 @@ class _TimerPageState extends State<TimerPage> {
       _phase = _Phase.focus;
       _remaining = widget.timer.focusTime;
       _focusElapsedAtEnd = Duration.zero;
+      _restElapsedAtEnd = Duration.zero;
       _focusOverflowAnnounced = false;
     });
     _announce('Round logged — ready for another one?');
@@ -203,6 +213,7 @@ class _TimerPageState extends State<TimerPage> {
     if (_isOvertime) return;
     if (_phase == _Phase.rest) {
       setState(() {
+        _restElapsedAtEnd = widget.timer.restTime - _remaining;
         _ticker?.cancel();
         _ticker = null;
       });

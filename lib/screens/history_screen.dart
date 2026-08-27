@@ -160,17 +160,60 @@ class _SessionCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                 ],
-                Text(
-                  _elapsedLabel(session.focusElapsed),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+                _TimeLabel(
+                  icon: Icons.center_focus_strong,
+                  label: 'focus',
+                  text: _elapsedLabel(session.focusElapsed),
+                ),
+                const SizedBox(width: 12),
+                _TimeLabel(
+                  icon: Icons.self_improvement,
+                  label: 'rest',
+                  text: _elapsedLabel(session.restElapsed),
                 ),
               ],
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// A labeled duration readout, e.g. a "focus" chip with its elapsed time.
+class _TimeLabel extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String text;
+
+  const _TimeLabel({
+    required this.icon,
+    required this.label,
+    required this.text,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.onSurfaceVariant;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 2),
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(color: color),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          text,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }

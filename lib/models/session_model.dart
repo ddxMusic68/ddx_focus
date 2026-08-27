@@ -14,6 +14,7 @@ class PomodoroSession {
     required this.restPlan,
     required this.startedAt,
     required this.focusElapsed,
+    required this.restElapsed,
     this.focusRating,
     this.focusReview,
   });
@@ -30,9 +31,14 @@ class PomodoroSession {
   /// When the focus countdown was started.
   final DateTime startedAt;
 
-  /// How long the focus phase actually ran, including any overtime the
-  /// user let elapse past zero before advancing to rest.
+  /// How long the focus phase actually ran — the planned focus time plus
+  /// any overtime the user let elapse past zero, or less than planned when
+  /// focus was skipped early.
   final Duration focusElapsed;
+
+  /// How long the rest phase actually ran — the planned rest time, or less
+  /// when rest was skipped early.
+  final Duration restElapsed;
 
   /// How focused the user felt, from 1 to 5; null when the round wasn't
   /// rated (e.g. the review screen was dismissed).
@@ -47,6 +53,7 @@ class PomodoroSession {
     String? restPlan,
     DateTime? startedAt,
     Duration? focusElapsed,
+    Duration? restElapsed,
     int? focusRating,
     String? focusReview,
   }) {
@@ -56,6 +63,7 @@ class PomodoroSession {
       restPlan: restPlan ?? this.restPlan,
       startedAt: startedAt ?? this.startedAt,
       focusElapsed: focusElapsed ?? this.focusElapsed,
+      restElapsed: restElapsed ?? this.restElapsed,
       focusRating: focusRating ?? this.focusRating,
       focusReview: focusReview ?? this.focusReview,
     );
@@ -68,6 +76,7 @@ class PomodoroSession {
       'restPlan': restPlan,
       'startedAt': startedAt.toIso8601String(),
       'focusSeconds': focusElapsed.inSeconds,
+      'restSeconds': restElapsed.inSeconds,
       'focusRating': focusRating,
       'focusReview': focusReview,
     };
@@ -87,6 +96,8 @@ class PomodoroSession {
       restPlan: json['restPlan'] as String? ?? '',
       startedAt: DateTime.parse(json['startedAt'] as String),
       focusElapsed: Duration(seconds: json['focusSeconds'] as int),
+      // Older sessions had no rest measurement; default to zero.
+      restElapsed: Duration(seconds: json['restSeconds'] as int? ?? 0),
       focusRating: json['focusRating'] as int?,
       focusReview: json['focusReview'] as String?,
     );
@@ -101,6 +112,7 @@ class PomodoroSession {
         other.restPlan == restPlan &&
         other.startedAt == startedAt &&
         other.focusElapsed == focusElapsed &&
+        other.restElapsed == restElapsed &&
         other.focusRating == focusRating &&
         other.focusReview == focusReview;
   }
@@ -112,6 +124,7 @@ class PomodoroSession {
     restPlan,
     startedAt,
     focusElapsed,
+    restElapsed,
     focusRating,
     focusReview,
   ]);
