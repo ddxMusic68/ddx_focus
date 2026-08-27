@@ -24,6 +24,24 @@ class SessionsProvider extends ChangeNotifier {
     unawaited(save());
   }
 
+  /// Replaces [original] with [updated] (matched by identity) and persists
+  /// the change. No-op when [original] is no longer present.
+  void update(PomodoroSession original, PomodoroSession updated) {
+    final index = _sessions.indexOf(original);
+    if (index < 0) return;
+    _sessions[index] = updated;
+    notifyListeners();
+    unawaited(save());
+  }
+
+  /// Removes [session] (matched by identity) and persists the change.
+  void delete(PomodoroSession session) {
+    final removed = _sessions.remove(session);
+    if (!removed) return;
+    notifyListeners();
+    unawaited(save());
+  }
+
   Future<File> get _file async {
     final directory = await getApplicationDocumentsDirectory();
     return File('${directory.path}/sessions.json');

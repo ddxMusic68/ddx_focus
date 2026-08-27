@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'package:ddx_focus/models/session_model.dart';
 import 'package:ddx_focus/providers/sessions_provider.dart';
+import 'package:ddx_focus/screens/session_edit_screen.dart';
 
 /// Shows every completed focus session, newest first, grouped under
 /// day headers (Today / Yesterday / date).
@@ -57,7 +58,11 @@ class HistoryScreen extends StatelessWidget {
                   ),
                 ),
                 for (final session in byDay[day]!)
-                  _SessionCard(session: session),
+                  _SessionCard(
+                    session: session,
+                    onEdit: () => _editSession(context, sessionsProvider, session),
+                    onDelete: () => _deleteSession(context, sessionsProvider, session),
+                  ),
               ],
             ],
           );
@@ -65,13 +70,64 @@ class HistoryScreen extends StatelessWidget {
       ),
     );
   }
+
+  Future<void> _editSession(
+    BuildContext context,
+    SessionsProvider provider,
+    PomodoroSession session,
+  ) async {
+    final updated = await Navigator.of(context).push<PomodoroSession>(
+      MaterialPageRoute(
+        builder: (_) => SessionEditScreen(session: session),
+      ),
+    );
+    if (updated != null) {
+      provider.update(session, updated);
+    }
+  }
+
+  Future<void> _deleteSession(
+    BuildContext context,
+    SessionsProvider provider,
+    PomodoroSession session,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete session?'),
+        content: const Text('This session will be permanently removed.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      provider.delete(session);
+    }
+  }
 }
+
+/// Actions offered by a session card's overflow menu.
+enum _MenuAction { edit, delete }
 
 /// One session entry with its tags, plans, review recap, rating and time.
 class _SessionCard extends StatelessWidget {
   final PomodoroSession session;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
-  const _SessionCard({required this.session});
+  const _SessionCard({
+    required this.session,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   String _clockTime(DateTime startedAt) {
     final h = startedAt.hour % 12 == 0 ? 12 : startedAt.hour % 12;
@@ -115,6 +171,34 @@ class _SessionCard extends StatelessWidget {
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
+                ),
+                PopupMenuButton<_MenuAction>(
+                  onSelected: (action) {
+                    switch (action) {
+                      case _MenuAction.edit:
+                        onEdit();
+                      case _MenuAction.delete:
+                        onDelete();
+                    }
+                  },
+                  icon: const Icon(Icons.more_vert, size: 20),
+                  tooltip: 'Session actions',
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: _MenuAction.edit,
+                      child: ListTile(
+                        leading: Icon(Icons.edit),
+                        title: Text('Edit'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: _MenuAction.delete,
+                      child: ListTile(
+                        leading: Icon(Icons.delete_outline),
+                        title: Text('Delete'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
