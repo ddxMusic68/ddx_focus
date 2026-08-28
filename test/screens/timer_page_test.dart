@@ -68,12 +68,18 @@ void main() {
       await tester.tap(find.byType(FloatingActionButton));
       await tester.pump();
 
-      // 3s focus + 1 extra tick lands us in overtime.
-      await tester.pump(const Duration(seconds: 4));
+      // Run focus to zero (3s): enters overtime and shows the focus-complete
+      // SnackBar with its "Silence" action.
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump();
 
-      expect(find.text('-00:01'), findsOneWidget);
+      expect(find.text('Silence'), findsOneWidget);
       expect(find.text('Overtime'), findsOneWidget);
       expect(find.text('OVERTIME'), findsOneWidget);
+
+      // A further tick lands us at -00:01.
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('-00:01'), findsOneWidget);
     });
 
     testWidgets(

@@ -7,8 +7,6 @@ class AboutScreen extends StatelessWidget {
 
   static const _websiteUrl = 'https://ddxmusic68.github.io/ddxwebsite/';
 
-  static const _atomicHabitsUrl = 'https://jamesclear.com/atomic-habits';
-
   // Replace this text with why you made the app.
   static const _storyPlaceholder =
       'Hey my name is Jackson I made this app to help me focus using pomodoro technique and help me stay consistent with it. I hope you enjoy it!';
@@ -26,7 +24,7 @@ class AboutScreen extends StatelessWidget {
           const SizedBox(height: 8),
           Center(
             child: Text(
-              'ddx routine',
+              'ddx_focus',
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
               ),

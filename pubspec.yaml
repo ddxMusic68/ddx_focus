@@ -1,7 +1,7 @@
 name: ddx_focus
 description: "A new Flutter project."
 publish_to: 'none'
-version: 0.1.0+1
+version: 1.0.0
 
 environment:
   sdk: ^3.11.5
@@ -15,6 +15,7 @@ dependencies:
   fl_chart: ^0.69.0
   file_picker: ^11.0.3
   url_launcher: ^6.3.2
+  audioplayers: ^6.7.1
 
 
 dev_dependencies:
@@ -26,6 +27,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/sounds/
 
 flutter_launcher_icons:
   android: true

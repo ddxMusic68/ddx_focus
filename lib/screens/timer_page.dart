@@ -7,6 +7,7 @@ import '../models/session_model.dart';
 import '../models/timer_model.dart';
 import '../providers/sessions_provider.dart';
 import '../providers/tags_provider.dart';
+import '../services/sound_service.dart';
 import 'session_review_screen.dart';
 import '../utils/constants.dart';
 
@@ -118,6 +119,7 @@ class _TimerPageState extends State<TimerPage> {
         _ticker?.cancel();
         _ticker = null;
         _restElapsedAtEnd = widget.timer.restTime;
+        unawaited(SoundService.instance.playRest());
         _announce('Rest complete — log your round.');
         unawaited(_completeCycle());
         return;
@@ -126,7 +128,14 @@ class _TimerPageState extends State<TimerPage> {
           !_focusOverflowAnnounced &&
           _remaining <= Duration.zero) {
         _focusOverflowAnnounced = true;
-        _announce('Focus complete — tap the button to start your rest.');
+        unawaited(SoundService.instance.playFocus());
+        _announce(
+          'Focus complete — tap the button to start your rest.',
+          action: SnackBarAction(
+            label: 'Silence',
+            onPressed: () => unawaited(SoundService.instance.stop()),
+          ),
+        );
       }
     });
   }
@@ -220,12 +229,12 @@ class _TimerPageState extends State<TimerPage> {
     _advanceToRest();
   }
 
-  void _announce(String message) {
+  void _announce(String message, {SnackBarAction? action}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(message)));
+        ..showSnackBar(SnackBar(content: Text(message), action: action));
     });
   }
 
