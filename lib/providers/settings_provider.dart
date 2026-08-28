@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
+
+import '../utils/storage_path.dart';
 
 enum AppThemeMode { light, dark, system }
 
@@ -33,7 +34,7 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Future<File> get _file async {
-    final directory = await getApplicationDocumentsDirectory();
+    final directory = await StoragePath.directory();
     return File('${directory.path}/settings.json');
   }
 

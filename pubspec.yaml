@@ -13,12 +13,25 @@ dependencies:
   package_info_plus: ^4.0.0
   path_provider: ^2.0.15
   fl_chart: ^0.69.0
+  file_picker: ^11.0.3
+  url_launcher: ^6.3.2
 
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
 
 flutter:
   uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  windows:
+    generate: true
+  macos:
+    generate: true
+  image_path: "assets/ddxFocus_icon.png"

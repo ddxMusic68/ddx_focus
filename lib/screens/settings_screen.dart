@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/sessions_provider.dart';
+import '../providers/tags_provider.dart';
+import '../providers/timer_provider.dart';
 import '../utils/constants.dart';
+import 'about_screen.dart';
+import 'data_screen.dart';
 import 'wip_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -46,23 +51,42 @@ class SettingsScreen extends StatelessWidget {
               ),
               const Divider(),
               const _SectionHeader(title: 'Data'),
-              _WipTile(
-                icon: Icons.upload_file,
-                title: 'Export Data',
-                subtitle: 'Save data to file',
-                feature: 'Export',
+              ListTile(
+                leading: const Icon(
+                  Icons.upload_file,
+                  color: AppColors.mintDark,
+                ),
+                title: const Text('Export Data'),
+                subtitle: const Text('Save data to file'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const DataScreen()),
+                  );
+                },
               ),
-              _WipTile(
-                icon: Icons.download,
-                title: 'Import Data',
-                subtitle: 'Load data from file',
-                feature: 'Import',
+              ListTile(
+                leading: const Icon(Icons.download, color: AppColors.mintDark),
+                title: const Text('Import Data'),
+                subtitle: const Text('Load data from file'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const DataScreen()),
+                  );
+                },
               ),
-              _WipTile(
-                icon: Icons.delete_outline,
-                title: 'Clear Local Data',
-                subtitle: 'Delete all data on this device',
-                feature: 'Clear local data',
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline,
+                  color: AppColors.mintDark,
+                ),
+                title: const Text('Clear Local Data'),
+                subtitle: const Text('Delete all data on this device'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _clearLocalData(context),
               ),
               _WipTile(
                 icon: Icons.cloud_off,
@@ -72,10 +96,19 @@ class SettingsScreen extends StatelessWidget {
               ),
               const Divider(),
               const _SectionHeader(title: 'Info'),
-              _WipTile(
-                icon: Icons.info_outline,
-                title: 'Learn more about this app',
-                feature: 'About',
+              ListTile(
+                leading: const Icon(
+                  Icons.info_outline,
+                  color: AppColors.mintDark,
+                ),
+                title: const Text('Learn more about this app'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AboutScreen()),
+                  );
+                },
               ),
               const Divider(),
               const _VersionTile(),
@@ -206,4 +239,44 @@ class _VersionTile extends StatelessWidget {
       },
     );
   }
+}
+
+Future<void> _clearLocalData(BuildContext context) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final sessions = context.read<SessionsProvider>();
+  final timers = context.read<TimersProvider>();
+  final tags = context.read<TagsProvider>();
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Clear Local Data'),
+      content: const Text(
+        'This will delete all sessions, timers and tags on this device. '
+        'This cannot be undone.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.error,
+            foregroundColor: Theme.of(context).colorScheme.onError,
+          ),
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Clear'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true) return;
+
+  sessions.replaceAll([]);
+  timers.replaceAll([]);
+  tags.replaceAll([]);
+  messenger.showSnackBar(
+    const SnackBar(content: Text('All local data has been cleared.')),
+  );
 }

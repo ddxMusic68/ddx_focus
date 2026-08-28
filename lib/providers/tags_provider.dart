@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
+
+import '../utils/storage_path.dart';
 
 /// Holds the user's tag names and persists them to a local JSON file.
 ///
@@ -43,8 +44,18 @@ class TagsProvider extends ChangeNotifier {
     return true;
   }
 
+  /// Replaces the entire tag list with [tags] and persists.
+  /// Used when importing data from a file.
+  void replaceAll(List<String> tags) {
+    _tags
+      ..clear()
+      ..addAll(tags);
+    notifyListeners();
+    unawaited(save());
+  }
+
   Future<File> get _file async {
-    final directory = await getApplicationDocumentsDirectory();
+    final directory = await StoragePath.directory();
     return File('${directory.path}/tags.json');
   }
 

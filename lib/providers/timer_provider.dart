@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../models/timer_model.dart';
+import '../utils/storage_path.dart';
 
 /// Holds the user's saved [PomodoroTimer] configurations and persists them
 /// to a local JSON file.
@@ -40,8 +40,18 @@ class TimersProvider extends ChangeNotifier {
     unawaited(save());
   }
 
+  /// Replaces the entire timer list with [timers] and persists.
+  /// Used when importing data from a file.
+  void replaceAll(List<PomodoroTimer> timers) {
+    _timers
+      ..clear()
+      ..addAll(timers);
+    notifyListeners();
+    unawaited(save());
+  }
+
   Future<File> get _file async {
-    final directory = await getApplicationDocumentsDirectory();
+    final directory = await StoragePath.directory();
     return File('${directory.path}/timers.json');
   }
 

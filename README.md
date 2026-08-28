@@ -57,10 +57,15 @@ Tests live in the `test/` directory and run with `flutter test`.
 
 ## Todo
 - [ ] finish readme
-- [ ] move windows storage dir to a exe
-- [ ] create about me page
-- [ ] add import/export
-- [ ] add clear local data
+- [X] move windows storage dir to a exe
+- [X] create about me page
+- [X] add import/export
+- [X] add clear local data
+- [X] create icon
+
 
 
 ## Changelog
+
+### Version 1.0.0
+created base app with home, satistics, history page

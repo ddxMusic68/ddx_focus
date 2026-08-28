@@ -91,6 +91,24 @@ void main() {
       });
     });
 
+    group('replaceAll', () {
+      test('replaces all timers and notifies listeners', () {
+        provider.addTimer(focus);
+        provider.replaceAll([study]);
+
+        expect(provider.timers, hasLength(1));
+        expect(provider.timers.single, equals(study));
+        expect(notifications, greaterThan(0));
+      });
+
+      test('clears timers when given an empty list', () {
+        provider.addTimer(focus);
+        provider.replaceAll([]);
+
+        expect(provider.timers, isEmpty);
+      });
+    });
+
     group('loadTimers', () {
       test('completes without crashing when storage is unavailable', () async {
         await provider.loadTimers();
