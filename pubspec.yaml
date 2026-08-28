@@ -12,6 +12,7 @@ dependencies:
   provider: ^6.0.5
   package_info_plus: ^4.0.0
   path_provider: ^2.0.15
+  fl_chart: ^0.69.0
 
 
 dev_dependencies:

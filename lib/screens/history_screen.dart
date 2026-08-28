@@ -23,54 +23,92 @@ class HistoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(title: const Text('History')),
-      body: Consumer<SessionsProvider>(
-        builder: (context, sessionsProvider, child) {
-          // Newest first.
-          final all = sessionsProvider.sessions.toList().reversed.toList();
-          if (all.isEmpty) return const _EmptyState();
+    return Consumer<SessionsProvider>(
+      builder: (context, sessionsProvider, child) {
+        void add() => _addSession(context, sessionsProvider);
 
-          // Group by the local-midnight day the session started on.
-          final Map<DateTime, List<PomodoroSession>> byDay = {};
-          for (final session in all) {
-            final day = DateTime(
-              session.startedAt.year,
-              session.startedAt.month,
-              session.startedAt.day,
-            );
-            byDay.putIfAbsent(day, () => []).add(session);
-          }
-          final days = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
+        return Scaffold(
+          appBar: AppBar(title: const Text('History')),
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: add,
+            icon: const Icon(Icons.add),
+            label: const Text('Add session'),
+          ),
+          body: Builder(
+            builder: (bodyContext) {
+              // Newest first.
+              final all = sessionsProvider.sessions.toList().reversed.toList();
+              if (all.isEmpty) {
+                return _EmptyState(onAdd: add);
+              }
 
-          return ListView(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            children: [
-              for (final day in days) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Text(
-                    _dayLabel(context, day),
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.bold,
+              // Group by the local-midnight day the session started on.
+              final Map<DateTime, List<PomodoroSession>> byDay = {};
+              for (final session in all) {
+                final day = DateTime(
+                  session.startedAt.year,
+                  session.startedAt.month,
+                  session.startedAt.day,
+                );
+                byDay.putIfAbsent(day, () => []).add(session);
+              }
+              final days = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
+
+              return ListView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                children: [
+                  for (final day in days) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Text(
+                        _dayLabel(context, day),
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                for (final session in byDay[day]!)
-                  _SessionCard(
-                    session: session,
-                    onEdit: () =>
-                        _editSession(context, sessionsProvider, session),
-                    onDelete: () =>
-                        _deleteSession(context, sessionsProvider, session),
-                  ),
-              ],
-            ],
-          );
-        },
+                    for (final session in byDay[day]!)
+                      _SessionCard(
+                        session: session,
+                        onEdit: () =>
+                            _editSession(context, sessionsProvider, session),
+                        onDelete: () =>
+                            _deleteSession(context, sessionsProvider, session),
+                      ),
+                  ],
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  /// Opens a blank form to create a brand-new session and records it.
+  Future<void> _addSession(
+    BuildContext context,
+    SessionsProvider provider,
+  ) async {
+    final created = await Navigator.of(context).push<PomodoroSession>(
+      MaterialPageRoute(
+        builder: (_) => SessionEditScreen(
+          session: PomodoroSession(
+            tags: const [],
+            focusPlan: '',
+            restPlan: '',
+            startedAt: DateTime.now(),
+            focusElapsed: Duration.zero,
+            restElapsed: Duration.zero,
+          ),
+          isNew: true,
+        ),
       ),
     );
+    if (created != null) {
+      provider.record(created);
+    }
   }
 
   Future<void> _editSession(
@@ -310,7 +348,9 @@ class _TimeLabel extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  const _EmptyState({required this.onAdd});
+
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -329,6 +369,12 @@ class _EmptyState extends StatelessWidget {
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: onAdd,
+            icon: const Icon(Icons.add),
+            label: const Text('Add a session'),
           ),
         ],
       ),

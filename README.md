@@ -56,5 +56,11 @@ Tests live in the `test/` directory and run with `flutter test`.
 4. Open a pull request with a description of your changes.
 
 ## Todo
+- [ ] finish readme
+- [ ] move windows storage dir to a exe
+- [ ] create about me page
+- [ ] add import/export
+- [ ] add clear local data
+
 
 ## Changelog

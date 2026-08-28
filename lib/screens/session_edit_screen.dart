@@ -11,10 +11,18 @@ import '../providers/tags_provider.dart';
 /// durations. Pops with the edited session, or with null when the user
 /// backs out without saving.
 class SessionEditScreen extends StatefulWidget {
-  const SessionEditScreen({super.key, required this.session});
+  const SessionEditScreen({
+    super.key,
+    required this.session,
+    this.isNew = false,
+  });
 
   /// The session being edited; unchanged fields are preserved.
   final PomodoroSession session;
+
+  /// When true the screen presents as a "New session" form instead of an
+  /// in-place edit; only the title and submit label differ.
+  final bool isNew;
 
   @override
   State<SessionEditScreen> createState() => _SessionEditScreenState();
@@ -120,7 +128,9 @@ class _SessionEditScreenState extends State<SessionEditScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit session')),
+      appBar: AppBar(
+        title: Text(widget.isNew ? 'New session' : 'Edit session'),
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -248,7 +258,7 @@ class _SessionEditScreenState extends State<SessionEditScreen> {
                   FilledButton.icon(
                     onPressed: _save,
                     icon: const Icon(Icons.check_circle),
-                    label: const Text('Save changes'),
+                    label: Text(widget.isNew ? 'Add session' : 'Save changes'),
                   ),
                 ],
               ),
