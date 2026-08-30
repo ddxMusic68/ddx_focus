@@ -36,6 +36,20 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               const Divider(),
+              const _SectionHeader(title: 'Timers'),
+              SwitchListTile(
+                secondary: const Icon(
+                  Icons.notifications_active_outlined,
+                  color: AppColors.mintDark,
+                ),
+                title: const Text('Background alarms'),
+                subtitle: const Text(
+                  'Alert when a phase ends while the app is minimized',
+                ),
+                value: settings.backgroundAlarms,
+                onChanged: (enabled) => settings.setBackgroundAlarms(enabled),
+              ),
+              const Divider(),
               const _SectionHeader(title: 'Sync'),
               _WipTile(
                 icon: Icons.cloud,

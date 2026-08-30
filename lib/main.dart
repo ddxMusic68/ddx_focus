@@ -7,9 +7,12 @@ import 'providers/timer_provider.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/stats_screen.dart';
+import 'services/alarm_service.dart';
 import 'utils/constants.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AlarmService.instance.initialize();
   runApp(const MainApp());
 }
 

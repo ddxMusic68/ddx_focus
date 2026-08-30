@@ -8,11 +8,22 @@ enum AppThemeMode { light, dark, system }
 
 class SettingsProvider extends ChangeNotifier {
   AppThemeMode _themeMode = AppThemeMode.system;
+  bool _backgroundAlarms = true;
 
   AppThemeMode get themeMode => _themeMode;
 
+  /// Whether native background alarms fire when a phase ends while the app
+  /// is minimized. Defaults to on.
+  bool get backgroundAlarms => _backgroundAlarms;
+
   void setThemeMode(AppThemeMode mode) {
     _themeMode = mode;
+    _saveSettings();
+    notifyListeners();
+  }
+
+  void setBackgroundAlarms(bool enabled) {
+    _backgroundAlarms = enabled;
     _saveSettings();
     notifyListeners();
   }
@@ -27,6 +38,7 @@ class SettingsProvider extends ChangeNotifier {
         (e) => e.name == json['themeMode'],
         orElse: () => AppThemeMode.system,
       );
+      _backgroundAlarms = json['backgroundAlarms'] as bool? ?? true;
       notifyListeners();
     } catch (e) {
       // Use defaults
@@ -40,7 +52,10 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> _saveSettings() async {
     final file = await _file;
-    final json = {'themeMode': _themeMode.name};
+    final json = {
+      'themeMode': _themeMode.name,
+      'backgroundAlarms': _backgroundAlarms,
+    };
     await file.writeAsString(jsonEncode(json));
   }
 }

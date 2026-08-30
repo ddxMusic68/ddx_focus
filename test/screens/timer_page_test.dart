@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'package:ddx_focus/models/timer_model.dart';
 import 'package:ddx_focus/providers/sessions_provider.dart';
+import 'package:ddx_focus/providers/settings_provider.dart';
 import 'package:ddx_focus/providers/tags_provider.dart';
 import 'package:ddx_focus/screens/timer_page.dart';
 import 'package:ddx_focus/utils/constants.dart';
@@ -14,7 +15,21 @@ const _timer = PomodoroTimer(
   restTime: Duration(seconds: 2),
 );
 
+/// Controllable wall clock. The countdown is derived from this instead of
+/// tick counts, so to advance a pump we must also advance the clock.
+DateTime _now = DateTime(2020, 1, 1);
+
+void _resetClock() => _now = DateTime(2020, 1, 1);
+
+/// Advances the fake wall clock and pumps [d] of fake time together.
+Future<void> _pumpFor(WidgetTester tester, Duration d) async {
+  _now = _now.add(d);
+  await tester.pump(d);
+}
+
 void main() {
+  setUp(_resetClock);
+
   Future<void> pumpTimerPage(WidgetTester tester) async {
     await tester.pumpWidget(
       MultiProvider(
@@ -23,8 +38,13 @@ void main() {
           ChangeNotifierProvider<SessionsProvider>(
             create: (_) => SessionsProvider(),
           ),
+          ChangeNotifierProvider<SettingsProvider>(
+            create: (_) => SettingsProvider(),
+          ),
         ],
-        child: MaterialApp(home: TimerPage(timer: _timer)),
+        child: MaterialApp(
+          home: TimerPage(timer: _timer, now: () => _now),
+        ),
       ),
     );
   }
@@ -69,16 +89,17 @@ void main() {
       await tester.pump();
 
       // Run focus to zero (3s): enters overtime and shows the focus-complete
-      // SnackBar with its "Silence" action.
-      await tester.pump(const Duration(seconds: 3));
+      // SnackBar with its "Silence" action. The extra pump lets the SnackBar
+      // (shown via a post-frame callback) actually render.
+      await _pumpFor(tester, const Duration(seconds: 3));
       await tester.pump();
 
       expect(find.text('Silence'), findsOneWidget);
       expect(find.text('Overtime'), findsOneWidget);
       expect(find.text('OVERTIME'), findsOneWidget);
 
-      // A further tick lands us at -00:01.
-      await tester.pump(const Duration(seconds: 1));
+      // A further second lands us at -00:01.
+      await _pumpFor(tester, const Duration(seconds: 1));
       expect(find.text('-00:01'), findsOneWidget);
     });
 
@@ -90,7 +111,7 @@ void main() {
 
         await tester.tap(find.byType(FloatingActionButton));
         await tester.pump();
-        await tester.pump(const Duration(seconds: 4));
+        await _pumpFor(tester, const Duration(seconds: 4));
 
         await tester.tap(find.byType(FloatingActionButton));
         await tester.pump();
@@ -104,7 +125,7 @@ void main() {
 
         // Rest runs out and the post-round review screen opens instead of
         // resetting right away.
-        await tester.pump(const Duration(seconds: 2));
+        await _pumpFor(tester, const Duration(seconds: 2));
         await tester.pumpAndSettle();
 
         expect(find.text('How focused were you?'), findsOneWidget);
@@ -199,8 +220,13 @@ void main() {
           providers: [
             ChangeNotifierProvider<TagsProvider>(create: (_) => TagsProvider()),
             ChangeNotifierProvider<SessionsProvider>.value(value: sessions),
+            ChangeNotifierProvider<SettingsProvider>(
+              create: (_) => SettingsProvider(),
+            ),
           ],
-          child: MaterialApp(home: TimerPage(timer: _timer)),
+          child: MaterialApp(
+            home: TimerPage(timer: _timer, now: () => _now),
+          ),
         ),
       );
 
@@ -230,12 +256,12 @@ void main() {
 
       // Run the full round: 3s focus plus 1s of overtime, then rest.
       await tester.tap(find.byType(FloatingActionButton));
-      await tester.pump(const Duration(seconds: 4));
+      await _pumpFor(tester, const Duration(seconds: 4));
 
       await tester.ensureVisible(find.byType(FloatingActionButton));
       await tester.tap(find.byType(FloatingActionButton));
       await tester.pump();
-      await tester.pump(const Duration(seconds: 2));
+      await _pumpFor(tester, const Duration(seconds: 2));
 
       // Rest ran out and the review screen opened.
       await tester.pumpAndSettle();
@@ -282,13 +308,18 @@ void main() {
           providers: [
             ChangeNotifierProvider<TagsProvider>(create: (_) => TagsProvider()),
             ChangeNotifierProvider<SessionsProvider>.value(value: sessions),
+            ChangeNotifierProvider<SettingsProvider>(
+              create: (_) => SettingsProvider(),
+            ),
           ],
-          child: MaterialApp(home: TimerPage(timer: _timer)),
+          child: MaterialApp(
+            home: TimerPage(timer: _timer, now: () => _now),
+          ),
         ),
       );
 
       await tester.tap(find.byType(FloatingActionButton));
-      await tester.pump(const Duration(seconds: 1));
+      await _pumpFor(tester, const Duration(seconds: 1));
 
       await tester.tap(find.byTooltip('Skip focus'));
       await tester.pump();
@@ -305,7 +336,7 @@ void main() {
       );
 
       // Let rest finish; the review opens with the shortened elapsed.
-      await tester.pump(const Duration(seconds: 2));
+      await _pumpFor(tester, const Duration(seconds: 2));
       await tester.pumpAndSettle();
       await tester.pageBack();
       await tester.pumpAndSettle();
@@ -323,15 +354,20 @@ void main() {
           providers: [
             ChangeNotifierProvider<TagsProvider>(create: (_) => TagsProvider()),
             ChangeNotifierProvider<SessionsProvider>.value(value: sessions),
+            ChangeNotifierProvider<SettingsProvider>(
+              create: (_) => SettingsProvider(),
+            ),
           ],
-          child: MaterialApp(home: TimerPage(timer: _timer)),
+          child: MaterialApp(
+            home: TimerPage(timer: _timer, now: () => _now),
+          ),
         ),
       );
 
       // Reach rest quickly via overtime, then skip it.
       await tester.tap(find.byType(FloatingActionButton));
       await tester.pump();
-      await tester.pump(const Duration(seconds: 4));
+      await _pumpFor(tester, const Duration(seconds: 4));
       await tester.ensureVisible(find.byType(FloatingActionButton));
       await tester.tap(find.byType(FloatingActionButton));
       await tester.pump();

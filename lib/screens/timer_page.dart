@@ -6,7 +6,9 @@ import 'package:provider/provider.dart';
 import '../models/session_model.dart';
 import '../models/timer_model.dart';
 import '../providers/sessions_provider.dart';
+import '../providers/settings_provider.dart';
 import '../providers/tags_provider.dart';
+import '../services/alarm_service.dart';
 import '../services/sound_service.dart';
 import 'session_review_screen.dart';
 import '../utils/constants.dart';
@@ -37,19 +39,42 @@ String _formatDuration(Duration d) {
 class TimerPage extends StatefulWidget {
   final PomodoroTimer timer;
 
-  const TimerPage({super.key, required this.timer});
+  /// Returns the current wall-clock time; injected so tests can control the
+  /// countdown, which is derived from real time rather than tick counts.
+  final DateTime Function() now;
+
+  const TimerPage({super.key, required this.timer, this.now = DateTime.now});
 
   @override
   State<TimerPage> createState() => _TimerPageState();
 }
 
-class _TimerPageState extends State<TimerPage> {
+class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   static const _tickInterval = Duration(seconds: 1);
 
+  /// The focus phase gets alarm id 1 and rest phase id 2, so scheduling the
+  /// rest alarm never overwrites a pending focus alarm (and vice versa).
+  static const _focusAlarmId = 1;
+  static const _restAlarmId = 2;
+
   _Phase _phase = _Phase.focus;
-  late Duration _remaining = widget.timer.focusTime;
+
+  /// Remaining time for the active phase. Authoritative while paused or idle;
+  /// while running it is superseded by [_phaseEndAt] (see [_remainingNow]).
+  Duration _remaining = Duration.zero;
+
+  /// Wall-clock instant the active phase ends, set only while running. This
+  /// makes the countdown DateTime-derived so elapsed time is correct even if
+  /// the app is minimized and the periodic ticker stops.
+  DateTime? _phaseEndAt;
+
   Timer? _ticker;
   bool _focusOverflowAnnounced = false;
+
+  /// Live remaining time. While running this is derived from the wall clock
+  /// (`[phaseEndAt] - now`); otherwise it is the stored [_remaining].
+  Duration get _remainingNow =>
+      _phaseEndAt != null ? _phaseEndAt!.difference(widget.now()) : _remaining;
 
   /// Focus time actually elapsed when the focus phase ended — planned time
   /// plus overtime, or less when focus was skipped. Folded into the
@@ -74,30 +99,94 @@ class _TimerPageState extends State<TimerPage> {
 
   /// True while focus has run past zero and is waiting for the user to
   /// advance to the rest phase.
-  bool get _isOvertime => _phase == _Phase.focus && _remaining <= Duration.zero;
+  bool get _isOvertime =>
+      _phase == _Phase.focus && _remainingNow <= Duration.zero;
+
+  /// Whether native background alarms are armed for the running phase.
+  bool get _backgroundAlarmsOn {
+    try {
+      return context.read<SettingsProvider>().backgroundAlarms;
+    } catch (_) {
+      // No SettingsProvider in the widget tree (e.g. isolated tests).
+      return false;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _remaining = widget.timer.focusTime;
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ticker?.cancel();
+    _disarmPhaseAlarm();
     _newTagController.dispose();
     _focusPlanController.dispose();
     _restPlanController.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // The app is foregrounded again. Re-sync the OS alarm (re-arm it while
+      // the active phase is still running so it keeps firing if we minimize
+      // again, or disarm once the phase has already ended), then reconcile
+      // any phase that ended while minimized. We must NOT unconditionally
+      // disarm here, or the OS alarm would never fire for a backgrounded
+      // phase-end (the reported "no pop-out / no sound" bug).
+      _syncPhaseAlarm();
+      _reconcile();
+    }
+  }
+
+  /// Ensures the OS alarm matches the live countdown state: armed for the
+  /// active phase's end time when the phase is still running, otherwise
+  /// disarmed (idle/paused/already-ended).
+  void _syncPhaseAlarm() {
+    final endAt = _phaseEndAt;
+    if (_running && endAt != null && widget.now().isBefore(endAt)) {
+      _armPhaseAlarm();
+    } else {
+      _disarmPhaseAlarm();
+    }
+  }
+
   void _start() {
     if (_running) return;
+    final now = widget.now();
     setState(() {
-      _startedAt = DateTime.now();
+      _startedAt ??= now;
+      _phaseEndAt = now.add(_remaining);
       _ticker = Timer.periodic(_tickInterval, (_) => _tick());
     });
+    // Ensure the app has permission to post notifications and schedule exact
+    // alarms before arming the background alarm (best-effort on first start).
+    unawaited(_ensureAlarmPermissionThenArm());
+  }
+
+  /// Requests the Android notification/exact-alarm permissions (no-op once
+  /// granted or when background alarms are disabled), then arms the native
+  /// alarm for the current phase so it can fire while the app is minimized.
+  Future<void> _ensureAlarmPermissionThenArm() async {
+    if (!_backgroundAlarmsOn) return;
+    await AlarmService.instance.requestPermissions();
+    if (!mounted) return;
+    _armPhaseAlarm();
   }
 
   void _pause() {
     setState(() {
+      _remaining = _remainingNow;
+      _phaseEndAt = null;
       _ticker?.cancel();
       _ticker = null;
     });
+    _disarmPhaseAlarm();
   }
 
   void _reset() {
@@ -106,38 +195,56 @@ class _TimerPageState extends State<TimerPage> {
       _ticker = null;
       _phase = _Phase.focus;
       _remaining = widget.timer.focusTime;
+      _phaseEndAt = null;
       _focusElapsedAtEnd = Duration.zero;
       _restElapsedAtEnd = Duration.zero;
       _focusOverflowAnnounced = false;
     });
+    _disarmPhaseAlarm();
   }
 
-  void _tick() {
-    setState(() {
-      _remaining -= _tickInterval;
-      if (_phase == _Phase.rest && _remaining <= Duration.zero) {
-        _ticker?.cancel();
-        _ticker = null;
-        _restElapsedAtEnd = widget.timer.restTime;
-        unawaited(SoundService.instance.playRest());
-        _announce('Rest complete — log your round.');
-        unawaited(_completeCycle());
-        return;
-      }
-      if (_phase == _Phase.focus &&
-          !_focusOverflowAnnounced &&
-          _remaining <= Duration.zero) {
-        _focusOverflowAnnounced = true;
-        unawaited(SoundService.instance.playFocus());
-        _announce(
-          'Focus complete — tap the button to start your rest.',
-          action: SnackBarAction(
-            label: 'Silence',
-            onPressed: () => unawaited(SoundService.instance.stop()),
-          ),
-        );
-      }
-    });
+  /// Periodic tick while foregrounded: recomputes the countdown from the
+  /// wall clock and fires any phase transition whose end time has passed.
+  void _tick() => _reconcile();
+
+  /// Recomputes state against the wall clock and handles a phase that has
+  /// just ended. Called every tick while foregrounded and again on resume so
+  /// time that elapsed while the app was minimized is caught up.
+  void _reconcile() {
+    final endAt = _phaseEndAt;
+    if (endAt == null) {
+      setState(() {});
+      return;
+    }
+
+    if (_phase == _Phase.rest && !widget.now().isBefore(endAt)) {
+      _ticker?.cancel();
+      _ticker = null;
+      _phaseEndAt = null;
+      _restElapsedAtEnd = widget.timer.restTime;
+      unawaited(SoundService.instance.playRest());
+      _announce('Rest complete — log your round.');
+      unawaited(_completeCycle());
+      return;
+    }
+
+    if (_phase == _Phase.focus &&
+        !_focusOverflowAnnounced &&
+        !widget.now().isBefore(endAt)) {
+      _focusOverflowAnnounced = true;
+      unawaited(SoundService.instance.playFocus());
+      _announce(
+        'Focus complete — tap the button to start your rest.',
+        action: SnackBarAction(
+          label: 'Silence',
+          onPressed: () => unawaited(SoundService.instance.stop()),
+        ),
+      );
+      _disarmPhaseAlarm();
+      return;
+    }
+
+    setState(() {});
   }
 
   /// Opens the review screen for the finished round, records the resulting
@@ -153,7 +260,7 @@ class _TimerPageState extends State<TimerPage> {
         tags: _selectedTags.toList(),
         focusPlan: _focusPlanController.text.trim(),
         restPlan: _restPlanController.text.trim(),
-        startedAt: _startedAt ?? DateTime.now(),
+        startedAt: _startedAt ?? widget.now(),
         focusElapsed: _focusElapsedAtEnd,
         restElapsed: _restElapsedAtEnd,
         focusRating: result?.focusRating,
@@ -164,10 +271,12 @@ class _TimerPageState extends State<TimerPage> {
     setState(() {
       _phase = _Phase.focus;
       _remaining = widget.timer.focusTime;
+      _phaseEndAt = null;
       _focusElapsedAtEnd = Duration.zero;
       _restElapsedAtEnd = Duration.zero;
       _focusOverflowAnnounced = false;
     });
+    _disarmPhaseAlarm();
     _announce('Round logged — ready for another one?');
   }
 
@@ -202,14 +311,17 @@ class _TimerPageState extends State<TimerPage> {
   /// Ends the focus phase and starts rest, capturing how long focus
   /// actually ran.
   void _advanceToRest() {
+    final now = widget.now();
     setState(() {
-      _focusElapsedAtEnd = widget.timer.focusTime - _remaining;
+      _focusElapsedAtEnd = widget.timer.focusTime - _remainingNow;
       _ticker?.cancel();
       _focusOverflowAnnounced = false;
       _phase = _Phase.rest;
       _remaining = widget.timer.restTime;
+      _phaseEndAt = now.add(widget.timer.restTime);
       _ticker = Timer.periodic(_tickInterval, (_) => _tick());
     });
+    _armPhaseAlarm();
   }
 
   /// Jumps past the current phase: focus goes straight to rest; rest goes
@@ -219,14 +331,43 @@ class _TimerPageState extends State<TimerPage> {
     if (_isOvertime) return;
     if (_phase == _Phase.rest) {
       setState(() {
-        _restElapsedAtEnd = widget.timer.restTime - _remaining;
+        _restElapsedAtEnd = widget.timer.restTime - _remainingNow;
         _ticker?.cancel();
         _ticker = null;
+        _phaseEndAt = null;
       });
+      _disarmPhaseAlarm();
       unawaited(_completeCycle());
       return;
     }
     _advanceToRest();
+  }
+
+  /// Arms the native background alarm for the active phase's end time, so a
+  /// phase that finishes while the app is minimized can still alert. No-op
+  /// when background alarms are disabled in settings.
+  void _armPhaseAlarm() {
+    if (!_backgroundAlarmsOn) return;
+    final endAt = _phaseEndAt;
+    if (endAt == null) return;
+    final id = _phase == _Phase.rest ? _restAlarmId : _focusAlarmId;
+    unawaited(
+      AlarmService.instance.schedulePhaseEnd(
+        id: id,
+        fireAt: endAt,
+        phase: _phase == _Phase.rest ? AlarmPhase.rest : AlarmPhase.focus,
+        title: _phase == _Phase.rest ? 'Rest complete' : 'Focus complete',
+        body: _phase == _Phase.rest
+            ? '${widget.timer.name} — tap to log your round.'
+            : '${widget.timer.name} — start your rest.',
+      ),
+    );
+  }
+
+  /// Cancels any pending native background alarm for the active phase.
+  void _disarmPhaseAlarm() {
+    unawaited(AlarmService.instance.cancelPhaseAlarm(_focusAlarmId));
+    unawaited(AlarmService.instance.cancelPhaseAlarm(_restAlarmId));
   }
 
   void _announce(String message, {SnackBarAction? action}) {
@@ -242,10 +383,10 @@ class _TimerPageState extends State<TimerPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final focusRemaining = _phase == _Phase.focus
-        ? _remaining
+        ? _remainingNow
         : widget.timer.focusTime;
     final restRemaining = _phase == _Phase.rest
-        ? _remaining
+        ? _remainingNow
         : widget.timer.restTime;
 
     return Scaffold(
