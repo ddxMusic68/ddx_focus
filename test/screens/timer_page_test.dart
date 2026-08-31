@@ -89,12 +89,15 @@ void main() {
       await tester.pump();
 
       // Run focus to zero (3s): enters overtime and shows the focus-complete
-      // SnackBar with its "Silence" action. The extra pump lets the SnackBar
-      // (shown via a post-frame callback) actually render.
+      // SnackBar message. The extra pump lets the SnackBar (shown via a
+      // post-frame callback) actually render.
       await _pumpFor(tester, const Duration(seconds: 3));
       await tester.pump();
 
-      expect(find.text('Silence'), findsOneWidget);
+      expect(
+        find.text('Focus complete — tap the button to start your rest.'),
+        findsOneWidget,
+      );
       expect(find.text('Overtime'), findsOneWidget);
       expect(find.text('OVERTIME'), findsOneWidget);
 

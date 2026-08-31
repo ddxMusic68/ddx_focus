@@ -9,7 +9,6 @@ import '../providers/sessions_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/tags_provider.dart';
 import '../services/alarm_service.dart';
-import '../services/sound_service.dart';
 import 'session_review_screen.dart';
 import '../utils/constants.dart';
 
@@ -234,7 +233,6 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
       _ticker = null;
       _phaseEndAt = null;
       _restElapsedAtEnd = widget.timer.restTime;
-      unawaited(SoundService.instance.playRest());
       _announce('Rest complete — log your round.');
       unawaited(_completeCycle());
       return;
@@ -244,14 +242,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
         !_focusOverflowAnnounced &&
         !widget.now().isBefore(endAt)) {
       _focusOverflowAnnounced = true;
-      unawaited(SoundService.instance.playFocus());
-      _announce(
-        'Focus complete — tap the button to start your rest.',
-        action: SnackBarAction(
-          label: 'Silence',
-          onPressed: () => unawaited(SoundService.instance.stop()),
-        ),
-      );
+      _announce('Focus complete — tap the button to start your rest.');
       _disarmPhaseAlarm();
       return;
     }
@@ -383,12 +374,12 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     unawaited(AlarmService.instance.cancelPhaseAlarm(_restAlarmId));
   }
 
-  void _announce(String message, {SnackBarAction? action}) {
+  void _announce(String message) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(message), action: action));
+        ..showSnackBar(SnackBar(content: Text(message)));
     });
   }
 

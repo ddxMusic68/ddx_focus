@@ -109,6 +109,8 @@ Tests live in the `test/` directory and run with `flutter test`.
 4. Open a pull request with a description of your changes.
 
 ## Todo
+- [ ] get rid of old alarm system sound on the main app
+- [ ] make sure state persists
 
 ## Changelog
 ### Version 1.0.2
