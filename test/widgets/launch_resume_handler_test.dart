@@ -54,25 +54,28 @@ void main() {
     );
   }
 
-  testWidgets('reopens the running timer on launch when a session is active', (
+  testWidgets(
+    'reopens the running timer once on launch when a session is active',
+    (tester) async {
+      final provider = loadedProvider(session());
+
+      await tester.pumpWidget(host(provider));
+      await tester.pump(); // fire the post-frame restore decision
+      await tester.pump(); // build the pushed TimerPage route
+
+      expect(find.byType(TimerPage), findsOneWidget);
+      expect(find.text('Running'), findsOneWidget);
+
+      final restored = timerFromSession(session());
+      expect(restored.name, 'Test');
+      expect(restored.focusTime, const Duration(seconds: 3));
+      expect(restored.restTime, const Duration(seconds: 2));
+    },
+  );
+
+  testWidgets('does not navigate when no session is active on launch', (
     tester,
   ) async {
-    final provider = loadedProvider(session());
-
-    await tester.pumpWidget(host(provider));
-    await tester.pump(); // fire the post-frame navigation callback
-    await tester.pump(); // build the pushed TimerPage route
-
-    expect(find.byType(TimerPage), findsOneWidget);
-    expect(find.text('Running'), findsOneWidget);
-
-    final restored = timerFromSession(session());
-    expect(restored.name, 'Test');
-    expect(restored.focusTime, const Duration(seconds: 3));
-    expect(restored.restTime, const Duration(seconds: 2));
-  });
-
-  testWidgets('does not navigate when no session is active', (tester) async {
     final provider = loadedProvider(null);
 
     await tester.pumpWidget(host(provider));
@@ -82,18 +85,44 @@ void main() {
     expect(find.byType(TimerPage), findsNothing);
   });
 
-  testWidgets('navigates only once per restored snapshot', (tester) async {
-    final provider = loadedProvider(session());
+  testWidgets(
+    'does not stack screens when the open timer re-persists on each action',
+    (tester) async {
+      final provider = loadedProvider(session());
+
+      await tester.pumpWidget(host(provider));
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(TimerPage), findsOneWidget);
+
+      // The open TimerPage persists a *fresh* RunningSession on every user
+      // action. These must not push duplicate screens.
+      provider.setSession(session());
+      provider.setSession(session());
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(TimerPage), findsOneWidget);
+    },
+  );
+
+  testWidgets('does not hijack a timer the user opens manually after launch', (
+    tester,
+  ) async {
+    // Cold launch with no active session: the handler settles with nothing.
+    final provider = loadedProvider(null);
 
     await tester.pumpWidget(host(provider));
     await tester.pump();
     await tester.pump();
-    expect(find.byType(TimerPage), findsOneWidget);
+    expect(find.byType(TimerPage), findsNothing);
 
-    // A later provider notification for the same snapshot must not re-push.
-    provider.notifyListeners();
+    // The user then starts a timer; a session becomes active. The handler must
+    // stay inert (it already completed its one-shot launch check).
+    provider.setSession(session());
     await tester.pump();
     await tester.pump();
-    expect(find.byType(TimerPage), findsOneWidget);
+
+    expect(find.byType(TimerPage), findsNothing);
   });
 }
