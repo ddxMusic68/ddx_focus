@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'providers/running_session_provider.dart';
 import 'providers/sessions_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/tags_provider.dart';
@@ -32,6 +33,9 @@ class MainApp extends StatelessWidget {
         ChangeNotifierProvider(create: (context) => TagsProvider()..loadTags()),
         ChangeNotifierProvider(
           create: (context) => SessionsProvider()..loadSessions(),
+        ),
+        ChangeNotifierProvider(
+          create: (context) => RunningSessionProvider()..load(),
         ),
       ],
       child: Consumer<SettingsProvider>(

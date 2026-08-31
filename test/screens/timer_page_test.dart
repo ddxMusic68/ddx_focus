@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+import 'package:ddx_focus/models/running_session.dart';
 import 'package:ddx_focus/models/timer_model.dart';
+import 'package:ddx_focus/providers/running_session_provider.dart';
 import 'package:ddx_focus/providers/sessions_provider.dart';
 import 'package:ddx_focus/providers/settings_provider.dart';
 import 'package:ddx_focus/providers/tags_provider.dart';
@@ -30,7 +32,10 @@ Future<void> _pumpFor(WidgetTester tester, Duration d) async {
 void main() {
   setUp(_resetClock);
 
-  Future<void> pumpTimerPage(WidgetTester tester) async {
+  Future<void> pumpTimerPage(
+    WidgetTester tester, {
+    RunningSession? initial,
+  }) async {
     await tester.pumpWidget(
       MultiProvider(
         providers: [
@@ -41,9 +46,12 @@ void main() {
           ChangeNotifierProvider<SettingsProvider>(
             create: (_) => SettingsProvider(),
           ),
+          ChangeNotifierProvider<RunningSessionProvider>(
+            create: (_) => RunningSessionProvider(),
+          ),
         ],
         child: MaterialApp(
-          home: TimerPage(timer: _timer, now: () => _now),
+          home: TimerPage(timer: _timer, now: () => _now, initial: initial),
         ),
       ),
     );
@@ -402,6 +410,113 @@ void main() {
       expect(find.text('write report'), findsOneWidget);
       expect(find.text('00:03'), findsOneWidget);
       expect(find.text('Paused'), findsOneWidget);
+    });
+  });
+
+  group('restore from persisted snapshot', () {
+    testWidgets('resumes a running focus phase from its wall-clock end', (
+      tester,
+    ) async {
+      // Phase end is 2s in the future; the clock starts at 2020-01-01.
+      final nowAtStart = DateTime(2020, 1, 1);
+      final endAt = nowAtStart.add(const Duration(seconds: 2));
+      final initial = RunningSession(
+        timerName: 'Test',
+        focusTime: const Duration(seconds: 3),
+        restTime: const Duration(seconds: 2),
+        phase: RunningPhase.focus,
+        running: true,
+        phaseEndAt: endAt,
+        remaining: Duration.zero,
+        focusElapsedAtEnd: Duration.zero,
+        restElapsedAtEnd: Duration.zero,
+        focusOverflowAnnounced: false,
+        tags: const ['work'],
+        focusPlan: '',
+        restPlan: '',
+        startedAt: nowAtStart,
+      );
+
+      _now = nowAtStart;
+      await pumpTimerPage(tester, initial: initial);
+
+      expect(find.text('Running'), findsOneWidget);
+
+      // The focus countdown derives from the wall clock and keeps counting:
+      // after 1s it reads 00:01 (while the grayed rest phase stays at 00:02).
+      await _pumpFor(tester, const Duration(seconds: 1));
+      expect(find.text('00:01'), findsOneWidget);
+      expect(find.text('00:02'), findsOneWidget);
+    });
+
+    testWidgets('restores a rest-phase snapshot with rest active', (
+      tester,
+    ) async {
+      final nowAtStart = DateTime(2020, 1, 1);
+      final endAt = nowAtStart.add(const Duration(seconds: 2));
+      final initial = RunningSession(
+        timerName: 'Test',
+        focusTime: const Duration(seconds: 3),
+        restTime: const Duration(seconds: 2),
+        phase: RunningPhase.rest,
+        running: true,
+        phaseEndAt: endAt,
+        remaining: Duration.zero,
+        focusElapsedAtEnd: const Duration(seconds: 3),
+        restElapsedAtEnd: Duration.zero,
+        focusOverflowAnnounced: false,
+        tags: const [],
+        focusPlan: '',
+        restPlan: '',
+        startedAt: nowAtStart,
+      );
+
+      _now = nowAtStart;
+      await pumpTimerPage(tester, initial: initial);
+
+      final context = tester.element(find.byType(TimerPage));
+      final theme = Theme.of(context);
+      final restColor = tester.widget<Text>(find.text('00:02')).style?.color;
+      final focusColor = tester.widget<Text>(find.text('00:03')).style?.color;
+      expect(restColor, AppColors.coral);
+      expect(focusColor, theme.disabledColor);
+      expect(find.text('Running'), findsOneWidget);
+    });
+
+    testWidgets('restores paused at elapsed when the phase has already ended', (
+      tester,
+    ) async {
+      // Phase end is 1s in the past: the runner must NOT auto-advance or
+      // start ticking; it shows the elapsed (overtime) position paused.
+      final nowAtStart = DateTime(2020, 1, 1);
+      final endAt = nowAtStart.subtract(const Duration(seconds: 1));
+      final initial = RunningSession(
+        timerName: 'Test',
+        focusTime: const Duration(seconds: 3),
+        restTime: const Duration(seconds: 2),
+        phase: RunningPhase.focus,
+        running: true,
+        phaseEndAt: endAt,
+        remaining: Duration.zero,
+        focusElapsedAtEnd: Duration.zero,
+        restElapsedAtEnd: Duration.zero,
+        focusOverflowAnnounced: false,
+        tags: const [],
+        focusPlan: '',
+        restPlan: '',
+        startedAt: nowAtStart,
+      );
+
+      _now = nowAtStart;
+      await pumpTimerPage(tester, initial: initial);
+
+      // endAt (now-1s) vs planned 3s => remaining is -00:01 (overtime).
+      expect(find.text('-00:01'), findsOneWidget);
+      expect(find.text('Overtime'), findsOneWidget);
+
+      // And it does not keep ticking on its own: still -00:01 after 1s.
+      await _pumpFor(tester, const Duration(seconds: 1));
+      expect(find.text('-00:01'), findsOneWidget);
     });
   });
 }

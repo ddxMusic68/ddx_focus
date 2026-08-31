@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/running_session.dart';
 import '../models/session_model.dart';
 import '../models/timer_model.dart';
+import '../providers/running_session_provider.dart';
 import '../providers/sessions_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/tags_provider.dart';
@@ -42,7 +44,17 @@ class TimerPage extends StatefulWidget {
   /// countdown, which is derived from real time rather than tick counts.
   final DateTime Function() now;
 
-  const TimerPage({super.key, required this.timer, this.now = DateTime.now});
+  /// When provided, the runner restores this in-progress snapshot instead of
+  /// starting from an idle focus phase. Used to reopen a session whose state
+  /// was persisted before the app was closed.
+  final RunningSession? initial;
+
+  const TimerPage({
+    super.key,
+    required this.timer,
+    this.now = DateTime.now,
+    this.initial,
+  });
 
   @override
   State<TimerPage> createState() => _TimerPageState();
@@ -126,8 +138,89 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    _remaining = widget.timer.focusTime;
+    final restored = widget.initial;
+    if (restored == null) {
+      _remaining = widget.timer.focusTime;
+    } else {
+      _restore(restored);
+    }
     WidgetsBinding.instance.addObserver(this);
+  }
+
+  /// Reconstructs this runner from a persisted [RunningSession] snapshot.
+  ///
+  /// The countdown is wall-clock derived, so the restored position is correct
+  /// under any amount of elapsed time. A phase whose end time is still ahead
+  /// resumes running (and re-arms the OS alarm); a phase that already ended
+  /// while the app was closed restores paused at the elapsed time so the user
+  /// can see where it got to and choose to continue or log.
+  void _restore(RunningSession restored) {
+    _phase = restored.phase == RunningPhase.rest ? _Phase.rest : _Phase.focus;
+    _remaining = restored.remaining;
+    _focusElapsedAtEnd = restored.focusElapsedAtEnd;
+    _restElapsedAtEnd = restored.restElapsedAtEnd;
+    _focusOverflowAnnounced = restored.focusOverflowAnnounced;
+    _selectedTags
+      ..clear()
+      ..addAll(restored.tags);
+    _focusPlanController.text = restored.focusPlan;
+    _restPlanController.text = restored.restPlan;
+    _startedAt = restored.startedAt;
+
+    final endAt = restored.phaseEndAt;
+    if (restored.running && endAt != null && widget.now().isBefore(endAt)) {
+      // Still running: resume the countdown and keep the OS alarm armed.
+      _phaseEndAt = endAt;
+      _ticker = Timer.periodic(_tickInterval, (_) => _tick());
+      _armPhaseAlarm();
+    } else {
+      // Paused, or the phase had already ended while the app was closed.
+      // Keep [phaseEndAt] as-is (null when paused, past when it elapsed) so
+      // the display shows the true position without auto-advancing.
+      _phaseEndAt = endAt;
+    }
+  }
+
+  /// The running-session provider controlling what gets persisted, or null
+  /// when it isn't in the widget tree (e.g. isolated tests).
+  RunningSessionProvider? get _runningSessionProvider {
+    try {
+      return context.read<RunningSessionProvider>();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Persists the current runner state so it can be reopened after an exit.
+  void _saveSnapshot() {
+    final provider = _runningSessionProvider;
+    if (provider == null) return;
+    final running = _phaseEndAt != null;
+    provider.setSession(
+      RunningSession(
+        timerName: widget.timer.name,
+        focusTime: widget.timer.focusTime,
+        restTime: widget.timer.restTime,
+        phase: _phase == _Phase.rest ? RunningPhase.rest : RunningPhase.focus,
+        running: running,
+        phaseEndAt: _phaseEndAt,
+        remaining: running ? Duration.zero : _remaining,
+        focusElapsedAtEnd: _focusElapsedAtEnd,
+        restElapsedAtEnd: _restElapsedAtEnd,
+        focusOverflowAnnounced: _focusOverflowAnnounced,
+        tags: _selectedTags.toList(),
+        focusPlan: _focusPlanController.text.trim(),
+        restPlan: _restPlanController.text.trim(),
+        startedAt: _startedAt,
+      ),
+    );
+  }
+
+  /// Clears any persisted running session (used when the round is reset or
+  /// fully completed).
+  void _clearSnapshot() {
+    final provider = _runningSessionProvider;
+    provider?.setSession(null);
   }
 
   @override
@@ -175,6 +268,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
       _phaseEndAt = now.add(_remaining);
       _ticker = Timer.periodic(_tickInterval, (_) => _tick());
     });
+    _saveSnapshot();
     // Ensure the app has permission to post notifications and schedule exact
     // alarms before arming the background alarm (best-effort on first start).
     unawaited(_ensureAlarmPermissionThenArm());
@@ -197,6 +291,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
       _ticker?.cancel();
       _ticker = null;
     });
+    _saveSnapshot();
     _disarmPhaseAlarm();
   }
 
@@ -211,6 +306,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
       _restElapsedAtEnd = Duration.zero;
       _focusOverflowAnnounced = false;
     });
+    _clearSnapshot();
     _disarmPhaseAlarm();
   }
 
@@ -279,6 +375,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
       _restElapsedAtEnd = Duration.zero;
       _focusOverflowAnnounced = false;
     });
+    _clearSnapshot();
     _disarmPhaseAlarm();
     _announce('Round logged — ready for another one?');
   }
@@ -299,6 +396,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
         _selectedTags.remove(tag);
       }
     });
+    _saveSnapshot();
   }
 
   /// Deletes [tag] from the user's tag list and deselects it when it was
@@ -307,6 +405,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     final removed = context.read<TagsProvider>().removeTag(tag);
     if (removed && _selectedTags.contains(tag)) {
       setState(() => _selectedTags.remove(tag));
+      _saveSnapshot();
     }
   }
 
@@ -324,6 +423,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
       _phaseEndAt = now.add(widget.timer.restTime);
       _ticker = Timer.periodic(_tickInterval, (_) => _tick());
     });
+    _saveSnapshot();
     _armPhaseAlarm();
   }
 
@@ -460,6 +560,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
                                               _selectedTags.add(name.trim());
                                               _newTagController.clear();
                                             });
+                                            _saveSnapshot();
                                           },
                                           icon: const Icon(Icons.add_circle),
                                           tooltip: 'Add tag',
@@ -480,6 +581,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
                                 isDense: true,
                               ),
                               textCapitalization: TextCapitalization.sentences,
+                              onChanged: (_) => _saveSnapshot(),
                             ),
                             const SizedBox(height: 12),
                             TextField(
@@ -491,6 +593,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
                                 isDense: true,
                               ),
                               textCapitalization: TextCapitalization.sentences,
+                              onChanged: (_) => _saveSnapshot(),
                             ),
                           ],
                         ),
