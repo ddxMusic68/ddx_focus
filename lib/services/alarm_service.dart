@@ -33,6 +33,11 @@ abstract class PhaseAlarmScheduler {
     required bool notificationOnly,
   });
   Future<void> cancel(int id);
+
+  /// Returns the alarm that launched the app via its notification tap, or
+  /// null when the app was opened normally. Only meaningful on platforms where
+  /// alarm notifications can deep-link back into the app.
+  Future<int?> getLaunchAlarmId();
 }
 
 /// Real scheduling implementation backed by `alarm_plus`.
@@ -114,6 +119,14 @@ class AlarmPlusScheduler implements PhaseAlarmScheduler {
   @override
   Future<void> cancel(int id) async {
     await AlarmPlus.cancel(id.toString());
+  }
+
+  @override
+  Future<int?> getLaunchAlarmId() async {
+    final launchAlarm = await AlarmPlus.getLaunchAlarm();
+    final rawId = launchAlarm?.id;
+    if (rawId == null) return null;
+    return int.tryParse(rawId);
   }
 }
 
@@ -253,6 +266,21 @@ class AlarmService {
       await _scheduler.cancel(id);
     } catch (e) {
       debugPrint('AlarmService cancel failed: $e');
+    }
+  }
+
+  /// Returns the id of the alarm whose notification tap launched the app, or
+  /// null when the app was opened normally (not via an alarm notification).
+  ///
+  /// Best-effort and non-fatal: the underlying plugin lookup is wrapped so a
+  /// platform failure simply reports "no launch alarm".
+  Future<int?> getLaunchAlarmId() async {
+    if (!_enabled) return null;
+    try {
+      return await _scheduler.getLaunchAlarmId();
+    } catch (e) {
+      debugPrint('AlarmService getLaunchAlarmId failed: $e');
+      return null;
     }
   }
 }

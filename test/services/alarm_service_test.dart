@@ -58,6 +58,11 @@ class _FakeScheduler implements PhaseAlarmScheduler {
   Future<void> cancel(int id) async {
     cancelled.add(id);
   }
+
+  int? launchAlarmId;
+
+  @override
+  Future<int?> getLaunchAlarmId() async => launchAlarmId;
 }
 
 void main() {
@@ -198,5 +203,22 @@ void main() {
         expect(fake.cancelled, [7]);
       },
     );
+
+    test(
+      'getLaunchAlarmId reports the launching alarm id when present',
+      () async {
+        final fake = _FakeScheduler()..launchAlarmId = 2;
+        final service = AlarmService.withScheduler(fake);
+
+        expect(await service.getLaunchAlarmId(), 2);
+      },
+    );
+
+    test('getLaunchAlarmId returns null when opened normally', () async {
+      final fake = _FakeScheduler()..launchAlarmId = null;
+      final service = AlarmService.withScheduler(fake);
+
+      expect(await service.getLaunchAlarmId(), isNull);
+    });
   });
 }

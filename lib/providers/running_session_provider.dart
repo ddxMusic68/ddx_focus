@@ -24,11 +24,25 @@ class RunningSessionProvider extends ChangeNotifier {
   /// Whether a restorable running session exists on disk.
   bool get hasActive => _session != null;
 
+  /// Whether the persisted session has been read from disk at least once.
+  bool get loaded => _loaded;
+
   /// Saves (or, when [session] is null, clears) the in-progress session.
   void setSession(RunningSession? session) {
     _session = session;
     notifyListeners();
     unawaited(save());
+  }
+
+  /// Seeds the in-memory state for widget tests without touching disk.
+  ///
+  /// Marks the provider as [loaded] so launch-time navigation decisions read
+  /// straightforwardly, and stores [session] (or clears it when null) without
+  /// any persistence side effects. Never used in production.
+  @visibleForTesting
+  void seedForTesting(RunningSession? session) {
+    _session = session;
+    _loaded = true;
   }
 
   Future<File> get _file async {
