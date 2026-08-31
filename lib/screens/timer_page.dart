@@ -112,6 +112,18 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
     }
   }
 
+  /// Whether the user chose a quiet notification-only alert (no loud ringer)
+  /// instead of the full-screen alarm.
+  bool get _notificationOnlyAlert {
+    try {
+      return context.read<SettingsProvider>().alertMode ==
+          AlertMode.notification;
+    } catch (_) {
+      // No SettingsProvider in the widget tree (e.g. isolated tests).
+      return false;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -360,6 +372,7 @@ class _TimerPageState extends State<TimerPage> with WidgetsBindingObserver {
         body: _phase == _Phase.rest
             ? '${widget.timer.name} — tap to log your round.'
             : '${widget.timer.name} — start your rest.',
+        notificationOnly: _notificationOnlyAlert,
       ),
     );
   }

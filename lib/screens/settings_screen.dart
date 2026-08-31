@@ -49,6 +49,26 @@ class SettingsScreen extends StatelessWidget {
                 value: settings.backgroundAlarms,
                 onChanged: (enabled) => settings.setBackgroundAlarms(enabled),
               ),
+              RadioGroup<AlertMode>(
+                groupValue: settings.alertMode,
+                onChanged: (mode) {
+                  if (mode != null) settings.setAlertMode(mode);
+                },
+                child: Column(
+                  children: [
+                    _AlertModeTile(
+                      title: 'Alarm',
+                      subtitle: 'Full-screen ring with sound',
+                      value: AlertMode.alarm,
+                    ),
+                    _AlertModeTile(
+                      title: 'Notification',
+                      subtitle: 'Quiet - no sound, just a ring',
+                      value: AlertMode.notification,
+                    ),
+                  ],
+                ),
+              ),
               const Divider(),
               const _SectionHeader(title: 'Sync'),
               _WipTile(
@@ -218,6 +238,46 @@ class _ThemeTile extends StatelessWidget {
         Radio<AppThemeMode>(value: value),
         Text(title),
       ],
+    );
+  }
+}
+
+class _AlertModeTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final AlertMode value;
+
+  const _AlertModeTile({
+    required this.title,
+    required this.subtitle,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        children: [
+          Radio<AlertMode>(value: value),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: theme.textTheme.bodyLarge),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

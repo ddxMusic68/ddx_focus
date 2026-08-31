@@ -111,6 +111,9 @@ Tests live in the `test/` directory and run with `flutter test`.
 ## Todo
 
 ## Changelog
+### Version 1.0.2
+
+
 ### Version 1.0.1
 - [X] make app work minimized (use datetime instead of timer)
 

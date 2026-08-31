@@ -30,6 +30,7 @@ abstract class PhaseAlarmScheduler {
     required String soundResource,
     required bool exact,
     required bool fullScreen,
+    required bool notificationOnly,
   });
   Future<void> cancel(int id);
 }
@@ -43,10 +44,15 @@ abstract class PhaseAlarmScheduler {
 /// so they reschedule after a reboot.
 class AlarmPlusScheduler implements PhaseAlarmScheduler {
   /// Builds the Flutter-asset-backed notification settings for one alarm.
+  ///
+  /// When [notificationOnly] is true the alert is delivered more quietly: the
+  /// ringer volume is muted so the custom sound does not play, while vibration
+  /// is kept so the device still "rings" (buzzes) at phase-end.
   AlarmNotificationSettings _settings({
     required String title,
     required String body,
     required String soundResource,
+    required bool notificationOnly,
   }) {
     return AlarmNotificationSettings(
       title: title,
@@ -54,12 +60,17 @@ class AlarmPlusScheduler implements PhaseAlarmScheduler {
       soundAsset: _assetFor(soundResource),
       stopButtonText: 'Stop',
       snoozeButtonText: 'Snooze',
-      vibrationSettings: const VibrationSettings(
+      vibrationSettings: VibrationSettings(
         enabled: true,
-        preset: VibrationPreset.strong,
+        preset: notificationOnly
+            ? VibrationPreset.medium
+            : VibrationPreset.strong,
         continuous: true,
       ),
-      volumeSettings: VolumeSettings(volume: 1.0, volumeEnforced: true),
+      volumeSettings: VolumeSettings(
+        volume: notificationOnly ? 0.0 : 1.0,
+        volumeEnforced: true,
+      ),
     );
   }
 
@@ -78,6 +89,7 @@ class AlarmPlusScheduler implements PhaseAlarmScheduler {
     required String soundResource,
     required bool exact,
     required bool fullScreen,
+    required bool notificationOnly,
   }) async {
     // `exact` is informational: alarm_plus always uses an exact alarm
     // (setExactAndAllowWhileIdle). Exact-alarm permission failures surface as
@@ -89,11 +101,12 @@ class AlarmPlusScheduler implements PhaseAlarmScheduler {
     await AlarmPlus.schedule(
       id: id.toString(),
       time: fireAt,
-      data: {'phase': soundResource},
+      data: {'phase': soundResource, 'notificationOnly': notificationOnly},
       notificationSettings: _settings(
         title: title,
         body: body,
         soundResource: soundResource,
+        notificationOnly: notificationOnly,
       ),
     );
   }
@@ -187,6 +200,7 @@ class AlarmService {
     required AlarmPhase phase,
     required String title,
     required String body,
+    required bool notificationOnly,
   }) async {
     if (!_enabled || !_initialized) return;
     try {
@@ -204,6 +218,7 @@ class AlarmService {
           soundResource: sound,
           exact: exact,
           fullScreen: _fullScreenAvailable,
+          notificationOnly: notificationOnly,
         );
       } on PlatformException {
         // `alarm_plus` only supports exact alarms, so a denial here is a real
@@ -220,6 +235,7 @@ class AlarmService {
           soundResource: sound,
           exact: false,
           fullScreen: _fullScreenAvailable,
+          notificationOnly: notificationOnly,
         );
       } catch (e) {
         debugPrint('AlarmService schedule failed: $e');

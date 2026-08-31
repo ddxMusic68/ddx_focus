@@ -13,6 +13,7 @@ class _FakeScheduler implements PhaseAlarmScheduler {
       String soundResource,
       bool exact,
       bool fullScreen,
+      bool notificationOnly,
     })
   >
   scheduled = [];
@@ -34,6 +35,7 @@ class _FakeScheduler implements PhaseAlarmScheduler {
     required String soundResource,
     required bool exact,
     required bool fullScreen,
+    required bool notificationOnly,
   }) async {
     if (throwOnSchedule) throw Exception('schedule boom');
     _scheduleCalls++;
@@ -48,6 +50,7 @@ class _FakeScheduler implements PhaseAlarmScheduler {
       soundResource: soundResource,
       exact: exact,
       fullScreen: fullScreen,
+      notificationOnly: notificationOnly,
     ));
   }
 
@@ -69,6 +72,7 @@ void main() {
         phase: AlarmPhase.focus,
         title: 'Focus over',
         body: 'Take a break',
+        notificationOnly: false,
       );
 
       expect(fake.scheduled, isEmpty);
@@ -87,6 +91,7 @@ void main() {
           phase: AlarmPhase.focus,
           title: 'Focus over',
           body: 'Take a break',
+          notificationOnly: false,
         );
 
         expect(fake.scheduled, hasLength(1));
@@ -110,6 +115,7 @@ void main() {
         phase: AlarmPhase.rest,
         title: 'Rest over',
         body: 'Back to focus',
+        notificationOnly: false,
       );
 
       expect(fake.scheduled.single.soundResource, 'rest_alarm');
@@ -127,6 +133,7 @@ void main() {
         phase: AlarmPhase.focus,
         title: 'Title',
         body: 'Body',
+        notificationOnly: false,
       );
 
       expect(fake.scheduled, hasLength(1));
@@ -143,10 +150,27 @@ void main() {
         phase: AlarmPhase.focus,
         title: 'Title',
         body: 'Body',
+        notificationOnly: false,
       );
 
       // _fullScreenAvailable defaults false; passed through as-is.
       expect(fake.scheduled.single.fullScreen, false);
+    });
+
+    test('passes notificationOnly through to the scheduler', () async {
+      final fake = _FakeScheduler()..exactAlarms = true;
+      final service = AlarmService.withScheduler(fake, initialized: true);
+
+      await service.schedulePhaseEnd(
+        id: 1,
+        fireAt: DateTime(2030, 1, 1, 12),
+        phase: AlarmPhase.focus,
+        title: 'Title',
+        body: 'Body',
+        notificationOnly: true,
+      );
+
+      expect(fake.scheduled.single.notificationOnly, true);
     });
 
     test('schedule errors are swallowed and do not propagate', () async {
@@ -159,6 +183,7 @@ void main() {
         phase: AlarmPhase.focus,
         title: 'Title',
         body: 'Body',
+        notificationOnly: false,
       );
     });
 
